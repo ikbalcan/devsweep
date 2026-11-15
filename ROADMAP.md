@@ -30,6 +30,14 @@ MCP server (`disk_status`, `plan_cleanup`, `clean_safe`), automation rules (off 
 - Safe clean no longer fails on the Dart analysis cache; the scanner runs the cleaner's path check up front.
 - History records why each item was skipped.
 
+## Done in v0.7
+- **Large files** section (sidebar, under "Your files"): the user's own files over 100 MB outside developer
+  folders, found through Spotlight (fallback: Downloads, Desktop, Documents, Movies, Music, Pictures).
+  Filters by type, size (100 MB to 1 GB) and "not opened longest". Nothing is pre-selected, everything is
+  Has data, removal is always Trash (the Cleaner forces it), and it is outside safe clean, the menu bar,
+  rules, MCP and the CLI clean. Skipped: ~/Library, hidden folders, git repositories, sync folders
+  (Dropbox, OneDrive, Google Drive), packages (.app, .photoslibrary), unfinished downloads.
+
 ## Next
 See `docs/NOTES.md` for the current status, decisions and the ordered to-do list.
 - **P1 · Stable local signing** so macOS stops asking for folder access after every build.

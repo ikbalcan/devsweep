@@ -127,6 +127,8 @@ public struct Cleaner: Sendable {
 
     func liveProtection(_ item: Item, _ s: SystemSnapshot) -> String? {
         switch item.recipeID {
+        case LargeFilesRecipe.recipeID:
+            if let path = item.paths.first, let why = LargeFilesRecipe.problem(path, home: home, snapshot: s) { return why }
         case "worktrees":
             if let path = item.paths.first, let wt = WorktreesRecipe.worktree(at: path),
                let why = WorktreesRecipe.problem(wt) {
@@ -149,7 +151,9 @@ public struct Cleaner: Sendable {
         return nil
     }
 
-    private func clean(_ item: Item, mode: RemovalMode) -> CleanOutcome {
+    private func clean(_ item: Item, mode requested: RemovalMode) -> CleanOutcome {
+        // The user's own files are never deleted outright, whatever mode was asked for.
+        let mode: RemovalMode = item.recipeID == LargeFilesRecipe.recipeID ? .trash : requested
         switch item.action {
         case .command(let args):
             if args.first == "/usr/bin/git" {

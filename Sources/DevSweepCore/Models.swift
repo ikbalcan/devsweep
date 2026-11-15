@@ -37,9 +37,12 @@ public enum Tier: String, Codable, CaseIterable, Sendable, Comparable {
 }
 
 public enum Ecosystem: String, Codable, CaseIterable, Sendable, Identifiable {
-    case projects, xcode, simulators, android, gradle, packages, aiTools, docker
+    case projects, xcode, simulators, android, gradle, packages, aiTools, docker, largeFiles
 
     public var id: String { rawValue }
+
+    /// The areas of developer data DevSweep understands. Large files are the user's own files and live apart.
+    public static var developerAreas: [Ecosystem] { allCases.filter { $0 != .largeFiles } }
 
     public var title: String {
         switch self {
@@ -51,6 +54,7 @@ public enum Ecosystem: String, Codable, CaseIterable, Sendable, Identifiable {
         case .packages: return "Package caches"
         case .aiTools: return "AI tools & editors"
         case .docker: return "Docker"
+        case .largeFiles: return "Large files"
         }
     }
 
@@ -65,6 +69,7 @@ public enum Ecosystem: String, Codable, CaseIterable, Sendable, Identifiable {
         case .packages: return "archivebox"
         case .aiTools: return "sparkles"
         case .docker: return "cube"
+        case .largeFiles: return "doc.text.magnifyingglass"
         }
     }
 }
@@ -155,11 +160,15 @@ public struct ScanResult: Codable, Sendable {
         self.duration = duration
     }
 
-    public func total(tier: Tier) -> Int64 { items.filter { $0.tier == tier }.reduce(0) { $0 + $1.size } }
+    /// Developer data only: the user's own large files never count towards the tier totals,
+    /// the disk bar or "safe to free".
+    public func total(tier: Tier) -> Int64 {
+        items.filter { $0.tier == tier && $0.ecosystem != .largeFiles }.reduce(0) { $0 + $1.size }
+    }
     public func total(ecosystem: Ecosystem) -> Int64 {
         items.filter { $0.ecosystem == ecosystem }.reduce(0) { $0 + $1.size }
     }
-    public var total: Int64 { items.reduce(0) { $0 + $1.size } }
+    public var total: Int64 { items.filter { $0.ecosystem != .largeFiles }.reduce(0) { $0 + $1.size } }
 
     /// The default safe selection: every unprotected Rebuilds item.
     public var safeSelection: [Item] { items.filter { $0.tier == .rebuilds && !$0.isProtected } }

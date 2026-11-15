@@ -61,6 +61,7 @@ struct RootView: View {
                 if let result = model.result {
                     switch route ?? .overview {
                     case .overview: OverviewView(result: result, route: $route)
+                    case .ecosystem(.largeFiles): LargeFilesView()
                     case .ecosystem(let eco): CategoryView(ecosystem: eco)
                     case .automation: AutomationView()
                     }
@@ -118,10 +119,14 @@ struct Sidebar: View {
             row("Overview", "gauge.with.dots.needle.33percent", model.result?.total)
                 .tag(Route.overview)
             Section("Areas") {
-                ForEach(Ecosystem.allCases) { eco in
+                ForEach(Ecosystem.developerAreas) { eco in
                     row(eco.title, eco.symbol, model.result?.total(ecosystem: eco))
                         .tag(Route.ecosystem(eco))
                 }
+            }
+            Section("Your files") {
+                row("Large files", Ecosystem.largeFiles.symbol, model.result?.total(ecosystem: .largeFiles))
+                    .tag(Route.ecosystem(.largeFiles))
             }
             Section {
                 row("Automation", "clock.arrow.circlepath", nil).tag(Route.automation)

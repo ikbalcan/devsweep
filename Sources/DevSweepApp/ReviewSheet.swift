@@ -31,7 +31,7 @@ struct ReviewSheet: View {
         let items = model.selectedItems
         let byTier = Dictionary(grouping: items, by: \.tier)
         let hasData = byTier[.hasData] ?? []
-        let freedNow = items.filter { (modes[$0.tier] ?? $0.tier.defaultRemovalMode) == .delete }.reduce(0) { $0 + $1.size }
+        let freedNow = items.filter { $0.ecosystem != .largeFiles && (modes[$0.tier] ?? $0.tier.defaultRemovalMode) == .delete }.reduce(0) { $0 + $1.size }
         return VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Clean \(ByteFormat.string(model.selectedSize))?").font(.title2.bold())
@@ -53,7 +53,12 @@ struct ReviewSheet: View {
                         Text("SAFETY").font(.caption.bold()).foregroundStyle(.secondary)
                         check("Protected items (running, active projects, in-use versions) are never included")
                         check("Running Gradle, emulators and tools are checked again right before removal")
-                        check("Only build output and caches are touched, never source code")
+                        if items.contains(where: { $0.ecosystem == .largeFiles }) {
+                            check("Your own large files are moved to the Trash, never deleted outright")
+                        }
+                        if items.contains(where: { $0.ecosystem != .largeFiles }) {
+                            check("Only build output and caches are touched, never source code")
+                        }
                     }
                     .padding(12)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -89,7 +94,8 @@ struct ReviewSheet: View {
                 TierBadge(tier: tier)
                 Text(ByteFormat.string(list.reduce(0) { $0 + $1.size })).bold().monospacedDigit()
                 Spacer()
-                if list.contains(where: { if case .removePaths = $0.action { return true } else { return false } }) {
+                if !list.allSatisfy({ $0.ecosystem == .largeFiles }),
+                   list.contains(where: { if case .removePaths = $0.action { return true } else { return false } }) {
                     Picker("Mode", selection: Binding(get: { modes[tier] ?? tier.defaultRemovalMode },
                                                       set: { modes[tier] = $0 })) {
                         Text("Delete now").tag(RemovalMode.delete)
@@ -99,8 +105,10 @@ struct ReviewSheet: View {
                     .fixedSize()
                 }
             }
-            Text((modes[tier] ?? tier.defaultRemovalMode) == .delete
-                 ? "Space is freed immediately."
+            Text(list.allSatisfy({ $0.ecosystem == .largeFiles })
+                 ? "Your own files. They go to the Trash, so you can put them back until you empty it."
+                 : (modes[tier] ?? tier.defaultRemovalMode) == .delete
+                 ? "Space is freed immediately. Large files are the exception: they always go to the Trash."
                  : "Undoable, but space is only freed when you empty the Trash.")
                 .font(.caption).foregroundStyle(.secondary)
             ForEach(list) { item in

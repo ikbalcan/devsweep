@@ -41,6 +41,13 @@ devsweep clean --tier rebuilds --yes         # remove all unprotected Rebuilds i
 
 Has-data items can only be removed from the app, one by one.
 
+## Large files
+
+A separate **Large files** section lists your own files over 100 MB (installers, archives, videos, documents)
+so you can find what fills the disk beyond developer data. It is deliberately apart from the safe cleans:
+nothing is selected for you, files always go to the Trash first, and they are never touched by the menu bar
+button, rules, the CLI or AI agents. Git repositories, sync folders, ~/Library and app packages are not searched.
+
 ## AI agents (MCP)
 
 `devsweep mcp` is a Model Context Protocol server over stdio. Add it to Claude Code:

@@ -65,6 +65,7 @@ public enum Recipes {
         AIToolsRecipe(),
         WorktreesRecipe(),
         DockerRecipe(),
+        LargeFilesRecipe(),
     ]
 }
 
@@ -93,6 +94,7 @@ public enum ScanSteps {
         "ai-tools": "AI tools & editors",
         "worktrees": "Agent worktrees",
         "docker": "Docker",
+        "large-files": "Large files",
     ]
     public static func title(_ id: String) -> String { titles[id] ?? id }
 }

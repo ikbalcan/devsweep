@@ -23,7 +23,7 @@ struct OverviewView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("By area").font(.headline)
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 260), spacing: 12)], spacing: 12) {
-                        ForEach(Ecosystem.allCases) { eco in
+                        ForEach(Ecosystem.developerAreas) { eco in
                             Button { route = .ecosystem(eco) } label: { EcosystemTile(ecosystem: eco, result: result) }
                                 .buttonStyle(.plain)
                         }

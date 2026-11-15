@@ -166,7 +166,9 @@ struct ItemInspector: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
                     if case .removePaths = item.action {
-                        Text(item.tier == .rebuilds ? "Deleted right away (it regenerates)." : "Moved to the Trash by default.")
+                        Text(item.tier == .rebuilds ? "Deleted right away (it regenerates)."
+                             : item.ecosystem == .largeFiles ? "Always moved to the Trash, never deleted outright."
+                             : "Moved to the Trash by default.")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 }

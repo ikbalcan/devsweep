@@ -406,3 +406,108 @@ final class DockerParsingTests: XCTestCase {
         XCTAssertEqual(DockerRecipe.bytes("12.5kB"), 12_500)
     }
 }
+
+final class LargeFilesTests: XCTestCase {
+    let fm = FileManager.default
+    var home: URL!
+
+    override func setUpWithError() throws {
+        home = fm.temporaryDirectory.appendingPathComponent("devsweep-large-\(UUID().uuidString)")
+        try fm.createDirectory(at: home, withIntermediateDirectories: true)
+    }
+
+    override func tearDownWithError() throws { try? fm.removeItem(at: home) }
+
+    @discardableResult
+    func make(_ rel: String, mb: Int = 0) throws -> URL {
+        let url = home.appendingPathComponent(rel)
+        try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let h = fm.createFile(atPath: url.path, contents: nil)
+        XCTAssertTrue(h)
+        if mb > 0 {
+            let f = try FileHandle(forWritingTo: url)
+            // Real bytes, not a sparse file: the recipe measures allocated size.
+            let chunk = Data(repeating: 1, count: 1_048_576)
+            for _ in 0..<mb { try f.write(contentsOf: chunk) }
+            try f.close()
+        }
+        return url
+    }
+
+    func eligible(_ rel: String) -> Bool {
+        var cache: [String: Bool] = [:]
+        return LargeFilesRecipe.eligible(home.appendingPathComponent(rel), home: home, gitCache: &cache)
+    }
+
+    func testEligibilityKeepsOwnFilesAndSkipsEverythingElse() throws {
+        try make("Downloads/a.dmg")
+        try make("Dev/repo/.git/HEAD")
+        try make("Dev/repo/assets/big.mov")
+        XCTAssertTrue(eligible("Downloads/a.dmg"))
+        XCTAssertFalse(eligible("big.mov"), "directly in home")
+        XCTAssertFalse(eligible("Library/Caches/x.bin"))
+        XCTAssertFalse(eligible(".Trash/x.zip"))
+        XCTAssertFalse(eligible("Downloads/Photos.photoslibrary/originals/x.heic"))
+        XCTAssertFalse(eligible("Downloads/App.app/Contents/x.bin"))
+        XCTAssertFalse(eligible("Dropbox/x/y.zip"))
+        XCTAssertFalse(eligible("OneDrive - Corp/x/y.zip"))
+        XCTAssertFalse(eligible("Downloads/movie.mp4.crdownload"))
+        XCTAssertFalse(eligible("Dev/web/node_modules/x/y.node"))
+        XCTAssertFalse(eligible("Dev/repo/assets/big.mov"), "inside a git repository")
+        var cache: [String: Bool] = [:]
+        XCTAssertFalse(LargeFilesRecipe.eligible(URL(fileURLWithPath: "/etc/hosts"), home: home, gitCache: &cache))
+    }
+
+    func testKinds() {
+        func k(_ n: String) -> LargeFileKind { LargeFileKind.kind(of: URL(fileURLWithPath: "/x/\(n)")) }
+        XCTAssertEqual(k("Xcode.xip"), .diskImage)
+        XCTAssertEqual(k("a.ZIP"), .archive)
+        XCTAssertEqual(k("a.mov"), .video)
+        XCTAssertEqual(k("a.pdf"), .document)
+        XCTAssertEqual(k("a.bin"), .other)
+    }
+
+    func testLargeFilesNeverCountTowardsDeveloperTotals() {
+        let disk = DiskInfo(total: 100, available: 50)
+        func item(_ eco: Ecosystem, _ tier: Tier, _ size: Int64) -> Item {
+            Item(recipeID: "t", key: "\(eco)\(size)", ecosystem: eco, tier: tier, name: "n", detail: "", paths: [],
+                 size: size, lossNote: "")
+        }
+        let r = ScanResult(items: [item(.largeFiles, .hasData, 900), item(.xcode, .hasData, 10), item(.xcode, .rebuilds, 5)],
+                           disk: disk, scannedAt: Date(), duration: 0)
+        XCTAssertEqual(r.total(tier: .hasData), 10)
+        XCTAssertEqual(r.total, 15)
+        XCTAssertEqual(r.total(ecosystem: .largeFiles), 900)
+        XCTAssertEqual(r.safeSelection.map(\.size), [5])
+        XCTAssertFalse(Ecosystem.developerAreas.contains(.largeFiles))
+    }
+
+    func testCleanerAlwaysTrashesLargeFilesEvenWhenAskedToDelete() throws {
+        let file = try make("Downloads/old.iso", mb: 1)
+        let item = Item(recipeID: LargeFilesRecipe.recipeID, key: file.path, ecosystem: .largeFiles, tier: .hasData,
+                        name: "old.iso", detail: "", paths: [file], size: 1, lossNote: "")
+        let out = Cleaner(home: home, allowedRoots: [home]).clean([item], mode: { _ in .delete })
+        XCTAssertTrue(out[0].succeeded, out[0].error ?? "")
+        XCTAssertEqual(out[0].freed, 0)
+        XCTAssertEqual(out[0].movedToTrash, 1)
+        XCTAssertFalse(fm.fileExists(atPath: file.path))
+    }
+
+    func testCleanerRefusesALargeFileThatMovedIntoAGitRepo() throws {
+        let file = try make("Dev/repo/big.zip", mb: 1)
+        try fm.createDirectory(at: home.appendingPathComponent("Dev/repo/.git"), withIntermediateDirectories: true)
+        let item = Item(recipeID: LargeFilesRecipe.recipeID, key: file.path, ecosystem: .largeFiles, tier: .hasData,
+                        name: "big.zip", detail: "", paths: [file], size: 1, lossNote: "")
+        let out = Cleaner(home: home, allowedRoots: [home]).clean([item], mode: { _ in .trash })
+        XCTAssertFalse(out[0].succeeded)
+        XCTAssertTrue(fm.fileExists(atPath: file.path))
+    }
+
+    func testFallbackWalkFindsOnlyBigFilesInKnownFolders() throws {
+        try make("Downloads/big.zip", mb: 150)
+        try make("Downloads/small.zip", mb: 1)
+        try make("Projects/other/big.zip", mb: 150)
+        let found = LargeFilesRecipe.walk(home: home).map(\.lastPathComponent)
+        XCTAssertEqual(found, ["big.zip"])
+    }
+}
