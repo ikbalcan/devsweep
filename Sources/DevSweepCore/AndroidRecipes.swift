@@ -186,6 +186,9 @@ struct PackageCachesRecipe: Recipe {
               loss: "Installers are downloaded again if you reinstall a formula."),
         Cache(key: "pip", name: "pip cache", path: "Library/Caches/pip", tier: .rebuilds,
               loss: "Wheels are downloaded again on the next pip install."),
+        Cache(key: "dart-server", name: "Dart analysis server cache", path: ".dartServer", tier: .rebuilds,
+              loss: "The Dart/Flutter analyzer re-indexes your projects the next time an editor opens them.",
+              runningMarker: "analysis_server"),
         Cache(key: "maven", name: "Maven repository", path: ".m2/repository", tier: .hasData,
               loss: "Downloaded artifacts come back on the next build, but anything you installed locally with mvn install is lost."),
     ]

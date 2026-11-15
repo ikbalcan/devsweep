@@ -37,7 +37,8 @@ public enum PathSafety {
         "Library/Application Support", "Library/Containers", "Library/Group Containers", "Library/Mobile Documents",
         "Library/Keychains", "Library/Mail", "Library/Messages", "Library/Preferences",
         ".android", ".android/avd", ".gradle", ".gradle/wrapper", ".gradle/wrapper/dists", ".npm", ".cocoapods",
-        ".pub-cache", ".m2", ".ssh", ".gnupg", ".config", ".bun", ".bun/install",
+        ".pub-cache", ".m2", ".ssh", ".gnupg", ".config", ".bun", ".bun/install", ".ollama", ".ollama/models",
+        ".cursor", ".vscode", ".claude",
         "Documents", "Desktop", "Downloads", "Pictures", "Movies", "Music", "Development", "Developer", "Projects",
     ]
 
@@ -60,6 +61,11 @@ public enum PathSafety {
         if resolved.hasPrefix(homePath + "/") {
             let rel = String(resolved.dropFirst(homePath.count + 1))
             if critical.contains(rel) { throw SafetyViolation.criticalFolder(path) }
+            // An app's whole support folder is never removed, only things inside it.
+            for parent in ["Library/Application Support", "Library/Containers", "Library/Group Containers"]
+            where rel.hasPrefix(parent + "/") && !rel.dropFirst(parent.count + 1).contains("/") {
+                throw SafetyViolation.criticalFolder(path)
+            }
         }
         let sdkRoots = roots.filter { $0 != homePath }
         if sdkRoots.contains(resolved) { throw SafetyViolation.criticalFolder(path) }
@@ -79,7 +85,7 @@ public struct CleanOutcome: Sendable {
 public struct Cleaner: Sendable {
     public let home: URL
     public let allowedRoots: [URL]
-    static let allowedExecutables: Set<String> = ["/usr/bin/xcrun"]
+    static let allowedExecutables: Set<String> = Set(["/usr/bin/xcrun"] + AIToolsRecipe.ollamaBinaries)
 
     public init(options: ScanOptions = ScanOptions()) {
         self.home = options.home
@@ -116,6 +122,11 @@ public struct Cleaner: Sendable {
             if s.androidStudioRunning { return "Android Studio was opened" }
         case "android-avd":
             if s.runningAVDs.contains(where: { item.id.hasSuffix(":\($0)") }) { return "Emulator started running" }
+        case "ai-tools":
+            if let app = ElectronApp.all.first(where: { item.id.hasPrefix("ai-tools:\($0.supportFolder):") }),
+               app.isRunning(s), !item.id.contains(":claude-code-") {
+                return "\(app.name) was opened"
+            }
         case "package-caches" where item.id.hasSuffix(":npx"):
             if s.anyRunning(containing: "/.npm/_npx/") { return "A running tool uses it" }
         default: break

@@ -45,7 +45,7 @@ struct DiskBar: View {
                 Spacer(minLength: 0)
             }
             .background(Color.secondary.opacity(0.1))
-            .clipShape(RoundedRectangle(cornerRadius: height / 2))
+            .clipShape(Capsule())
         }
         .frame(height: height)
         .accessibilityElement()
@@ -63,7 +63,7 @@ struct FreeSpaceHeader: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             Text("\(ByteFormat.string(disk.available)) free")
-                .font(.system(size: 30, weight: .bold))
+                .font(.system(size: 34, weight: .bold, design: .rounded))
                 .foregroundStyle(isCritical ? Color.red : isLow ? Color.orange : Color.primary)
             Text("of \(ByteFormat.string(disk.total))")
                 .foregroundStyle(.secondary)

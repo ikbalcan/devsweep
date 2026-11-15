@@ -58,21 +58,24 @@ struct RootView: View {
                     case .ecosystem(let eco): CategoryView(ecosystem: eco)
                     }
                 } else {
-                    ScanningPlaceholder()
+                    ScanProgressView()
                 }
             }
+            .overlay(alignment: .top) {
+                if model.isScanning && model.result != nil {
+                    RescanStrip().transition(.move(edge: .top).combined(with: .opacity))
+                }
+            }
+            .animation(.smooth, value: model.isScanning)
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if model.result != nil { SelectionBar(showReview: $showReview) }
             }
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                if model.isScanning {
-                    ProgressView().controlSize(.small)
-                } else {
-                    Button { Task { await model.scan() } } label: { Label("Rescan", systemImage: "arrow.clockwise") }
-                        .help("Scan again (⌘R)")
-                }
+                Button { Task { await model.scan() } } label: { Label("Rescan", systemImage: "arrow.clockwise") }
+                    .help("Scan again (⌘R)")
+                    .disabled(model.isScanning || model.isCleaning)
             }
         }
         .sheet(isPresented: $showReview) { ReviewSheet() }
@@ -109,18 +112,6 @@ struct Sidebar: View {
     }
 }
 
-struct ScanningPlaceholder: View {
-    var body: some View {
-        VStack(spacing: 12) {
-            ProgressView()
-            Text("Scanning developer folders…").font(.headline)
-            Text("Xcode, simulators, Android, Gradle, projects and package caches. Nothing is changed.")
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
-
 struct SelectionBar: View {
     @Environment(AppModel.self) private var model
     @Binding var showReview: Bool
@@ -128,25 +119,29 @@ struct SelectionBar: View {
     var body: some View {
         let items = model.selectedItems
         let tiers = Set(items.map(\.tier)).sorted()
-        HStack {
+        // A floating control bar over the content, not a full-width footer.
+        HStack(spacing: 14) {
             if items.isEmpty {
                 Text("Nothing selected").foregroundStyle(.secondary)
             } else {
-                Text("\(ByteFormat.string(model.selectedSize)) selected").bold()
-                Text("· \(items.count) items · \(tiers.map(\.title).joined(separator: ", "))")
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    ForEach(tiers, id: \.self) { Circle().fill($0.color).frame(width: 8, height: 8) }
+                }
+                Text("\(ByteFormat.string(model.selectedSize)) selected").bold().monospacedDigit()
+                Text("\(items.count) items").foregroundStyle(.secondary)
             }
-            Spacer()
             Button("Review & Clean…") { showReview = true }
-                .buttonStyle(.borderedProminent)
+                .primaryGlassButton()
                 .tint(.green)
                 .controlSize(.large)
                 .disabled(items.isEmpty || model.isScanning)
                 .keyboardShortcut(.defaultAction)
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 12)
-        .background(.bar)
-        .overlay(alignment: .top) { Divider() }
+        .padding(.leading, 20)
+        .padding(.trailing, 8)
+        .padding(.vertical, 8)
+        .glassCapsule()
+        .padding(.bottom, 16)
+        .frame(maxWidth: .infinity)
     }
 }

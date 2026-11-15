@@ -180,6 +180,46 @@ final class SandboxHomeTests: XCTestCase {
                                                   allowedRoots: [home], home: home))
     }
 
+    func testAIToolsFindsCachesOrphansAndOllama() async throws {
+        let support = "Library/Application Support/Cursor"
+        try make("\(support)/Cache/data_0", file: true)
+        try make("\(support)/User/globalStorage/state.vscdb", file: true)
+        try make("\(support)/User/workspaceStorage/aaa/workspace.json", file: true,
+                 content: #"{"folder":"file:///nonexistent/devsweep/project"}"#)
+        try make("\(support)/User/workspaceStorage/bbb/workspace.json", file: true,
+                 content: "{\"folder\":\"file://\(home.path)\"}")
+        try make(".ollama/models/manifests/registry.ollama.ai/library/gemma4/latest", file: true,
+                 content: #"{"layers":[{"size":100},{"size":23}]}"#)
+        try make(".ollama/models/blobs/sha256-x", file: true)
+
+        let ctx = ScanContext(options: ScanOptions(home: home), snapshot: SystemSnapshot(commandLines: []),
+                              projects: [], now: Date())
+        let items = await AIToolsRecipe().discover(ctx)
+        let byKey = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })
+        XCTAssertEqual(byKey["ai-tools:Cursor:caches"]?.tier, .rebuilds)
+        XCTAssertEqual(byKey["ai-tools:Cursor:state-db"]?.tier, .hasData)
+        let orphans = byKey["ai-tools:Cursor:workspaces-orphaned"]
+        XCTAssertEqual(orphans?.paths.map(\.lastPathComponent), ["aaa"])
+        XCTAssertNotNil(byKey["ai-tools:ollama-orphaned"])  // no ollama binary in the test home
+        XCTAssertEqual(AIToolsRecipe.ollamaManifests(home.appendingPathComponent(".ollama/models/manifests")).first?.name,
+                       "gemma4:latest")
+        XCTAssertEqual(AIToolsRecipe.ollamaManifests(home.appendingPathComponent(".ollama/models/manifests")).first?.size, 123)
+
+        // While the app runs, everything of it is protected.
+        let running = ScanContext(options: ScanOptions(home: home),
+                                  snapshot: SystemSnapshot(commandLines: ["/Applications/Cursor.app/Contents/MacOS/Cursor"]),
+                                  projects: [], now: Date())
+        let locked = await AIToolsRecipe().discover(running).filter { $0.id.hasPrefix("ai-tools:Cursor:") }
+        XCTAssertTrue(locked.allSatisfy(\.isProtected))
+    }
+
+    func testRefusesWholeAppSupportFolder() {
+        XCTAssertThrowsError(try PathSafety.check(home.appendingPathComponent("Library/Application Support/Cursor"),
+                                                  allowedRoots: [home], home: home))
+        XCTAssertNoThrow(try PathSafety.check(home.appendingPathComponent("Library/Application Support/Cursor/Cache"),
+                                              allowedRoots: [home], home: home))
+    }
+
     func testDefaultModes() {
         XCTAssertEqual(Tier.rebuilds.defaultRemovalMode, .delete)
         XCTAssertEqual(Tier.redownload.defaultRemovalMode, .trash)

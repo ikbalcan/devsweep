@@ -47,7 +47,10 @@ struct MenuBarView: View {
 
     private var header: some View {
         HStack {
-            Label("DevSweep", systemImage: "externaldrive").font(.headline)
+            HStack(spacing: 8) {
+                LogoMark(size: 24)
+                Text("DevSweep").font(.headline)
+            }
             Spacer()
             SettingsLink { Image(systemName: "gearshape") }
                 .buttonStyle(.borderless)
@@ -102,23 +105,37 @@ struct MenuBarView: View {
             Button {
                 Task { await model.quickClean() }
             } label: {
-                HStack {
-                    if model.isCleaning || model.isScanning { ProgressView().controlSize(.small) }
-                    Text(buttonTitle).frame(maxWidth: .infinity)
-                }
-                .frame(height: 28)
+                Text(buttonTitle).frame(maxWidth: .infinity).frame(height: 28)
             }
-            .buttonStyle(.borderedProminent)
+            .primaryGlassButton()
             .tint(.green)
             .controlSize(.large)
             .disabled(model.isCleaning || model.isScanning || model.safeSize == 0)
 
-            Text(model.isCleaning ? model.cleaningStatus
-                 : "Only items that rebuild on their own · active projects skipped")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .truncationMode(.middle)
+            if model.isScanning {
+                // Determinate progress with what is happening, instead of a bare spinner.
+                TimelineView(.periodic(from: .now, by: 0.5)) { context in
+                    let p = model.scanProgress
+                    VStack(spacing: 4) {
+                        ProgressView(value: p.fraction(now: context.date)).tint(.green)
+                        HStack {
+                            Text("\(p.done) of \(p.steps.count) areas · \(CompactBytes.string(p.foundBytes)) found")
+                            Spacer()
+                            if let left = p.remainingText(now: context.date) { Text(left) }
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                    }
+                }
+            } else {
+                Text(model.isCleaning ? model.cleaningStatus
+                     : "Only items that rebuild on their own · active projects skipped")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
         }
     }
 

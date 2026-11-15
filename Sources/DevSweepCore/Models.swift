@@ -37,7 +37,7 @@ public enum Tier: String, Codable, CaseIterable, Sendable, Comparable {
 }
 
 public enum Ecosystem: String, Codable, CaseIterable, Sendable, Identifiable {
-    case projects, xcode, simulators, android, gradle, packages
+    case projects, xcode, simulators, android, gradle, packages, aiTools
 
     public var id: String { rawValue }
 
@@ -49,6 +49,7 @@ public enum Ecosystem: String, Codable, CaseIterable, Sendable, Identifiable {
         case .android: return "Android SDK & Emulators"
         case .gradle: return "Gradle"
         case .packages: return "Package caches"
+        case .aiTools: return "AI tools & editors"
         }
     }
 
@@ -61,6 +62,7 @@ public enum Ecosystem: String, Codable, CaseIterable, Sendable, Identifiable {
         case .android: return "smartphone"
         case .gradle: return "shippingbox"
         case .packages: return "archivebox"
+        case .aiTools: return "sparkles"
         }
     }
 }

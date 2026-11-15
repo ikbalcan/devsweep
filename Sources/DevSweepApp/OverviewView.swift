@@ -60,11 +60,9 @@ struct TierCard: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
-        .padding(16)
+        .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 12).fill(tier == .rebuilds ? tier.color.opacity(0.08) : Color.clear))
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(tier == .rebuilds ? tier.color : Color.secondary.opacity(0.25),
-                                                            lineWidth: tier == .rebuilds ? 2 : 1))
+        .contentCard(cornerRadius: 20, tint: tier == .rebuilds ? tier.color : nil, emphasized: tier == .rebuilds)
     }
 }
 
@@ -97,8 +95,8 @@ struct EcosystemTile: View {
             Text(top.map { "Largest: \($0.name) · \(ByteFormat.string($0.size))" } ?? " ")
                 .font(.caption).foregroundStyle(.secondary).lineLimit(1)
         }
-        .padding(14)
-        .contentShape(Rectangle())
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.secondary.opacity(0.25)))
+        .padding(16)
+        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .contentCard(cornerRadius: 18)
     }
 }

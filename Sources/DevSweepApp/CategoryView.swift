@@ -53,7 +53,7 @@ struct CategoryView: View {
                             ForEach(items) { item in ItemRow(item: item).tag(item.id) }
                         } header: {
                             HStack {
-                                Text(AppModel.recipeTitles[key] ?? key)
+                                Text(ScanSteps.title(key))
                                 Spacer()
                                 Text(ByteFormat.string(items.reduce(0) { $0 + $1.size })).monospacedDigit()
                             }

@@ -74,7 +74,7 @@ struct ReviewSheet: View {
                     finished = true
                     Task { await model.clean(modes: modes) }
                 }
-                .buttonStyle(.borderedProminent)
+                .primaryGlassButton()
                 .tint(hasData.isEmpty ? .green : .orange)
                 .keyboardShortcut(.defaultAction)
                 .disabled(items.isEmpty || (!hasData.isEmpty && !acknowledgedData))

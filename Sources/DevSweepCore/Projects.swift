@@ -44,8 +44,9 @@ public struct ProjectFinder: Sendable {
         (".build", ["Package.swift"], nil),
     ]
 
-    public func find() -> [Project] {
+    public func find(progress: ((Int) -> Void)? = nil) -> [Project] {
         let acc = Accumulator()
+        acc.progress = progress
         for root in options.projectRoots {
             walk(root, depth: 0, project: nil, acc: acc)
         }
@@ -54,11 +55,15 @@ public struct ProjectFinder: Sendable {
 
     private final class Accumulator {
         var projects: [Project] = []
+        var visited = 0
+        var progress: ((Int) -> Void)?
     }
 
     private func walk(_ dir: URL, depth: Int, project: Int?, acc: Accumulator) {
         let fm = FileManager.default
         guard let entries = try? fm.contentsOfDirectory(atPath: dir.path) else { return }
+        acc.visited += 1
+        if acc.visited % 250 == 0 { acc.progress?(acc.visited) }
         let names = Set(entries)
         let isHome = dir.standardizedFileURL.path == options.home.standardizedFileURL.path
         var current = project

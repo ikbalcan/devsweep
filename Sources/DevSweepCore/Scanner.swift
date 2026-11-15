@@ -35,6 +35,11 @@ public struct ScanContext: Sendable {
     public var home: URL { options.home }
 }
 
+public extension Scanner {
+    /// Recipes that read the discovered project list (and so wait for the project search).
+    static let needsProjects: Set<String> = ["project-artifacts", "gradle-wrapper"]
+}
+
 public protocol Recipe: Sendable {
     var id: String { get }
     func discover(_ context: ScanContext) async -> [Item]
@@ -53,7 +58,35 @@ public enum Recipes {
         GradleCachesRecipe(),
         GradleWrapperRecipe(),
         PackageCachesRecipe(),
+        AIToolsRecipe(),
     ]
+}
+
+public enum ScanEvent: Sendable {
+    /// All steps, in display order: "projects" (finding projects) then one per recipe.
+    case started(steps: [String])
+    case projectSearch(foldersVisited: Int)
+    case stepFinished(id: String, items: Int, bytes: Int64)
+}
+
+public enum ScanSteps {
+    public static let projectSearch = "projects"
+    public static let titles: [String: String] = [
+        projectSearch: "Finding projects",
+        "project-artifacts": "Project build folders",
+        "xcode-deriveddata": "DerivedData",
+        "xcode-archives": "Archives",
+        "xcode-devicesupport": "Device support",
+        "simulator-devices": "Simulator devices",
+        "simulator-runtimes": "Simulator runtimes",
+        "android-avd": "Emulators",
+        "android-sdk": "SDK packages",
+        "gradle-caches": "Gradle caches",
+        "gradle-wrapper": "Gradle distributions",
+        "package-caches": "Package manager caches",
+        "ai-tools": "AI tools & editors",
+    ]
+    public static func title(_ id: String) -> String { titles[id] ?? id }
 }
 
 public struct Scanner: Sendable {
@@ -65,13 +98,43 @@ public struct Scanner: Sendable {
         self.recipes = recipes
     }
 
-    public func scan() async -> ScanResult {
+    public func scan(progress: (@Sendable (ScanEvent) -> Void)? = nil) async -> ScanResult {
         let start = Date()
+        progress?(.started(steps: [ScanSteps.projectSearch] + recipes.map(\.id)))
         let snapshot = SystemSnapshot.capture()
-        let projects = ProjectFinder(options: options).find()
-        let context = ScanContext(options: options, snapshot: snapshot, projects: projects, now: start)
+
+        // Recipes that do not need the project list start right away, in parallel with the project search.
+        let independent = recipes.filter { !Self.needsProjects.contains($0.id) }
+        let dependent = recipes.filter { Self.needsProjects.contains($0.id) }
+        let options = self.options
         let items = await withTaskGroup(of: [Item].self) { group in
-            for r in recipes { group.addTask { await r.discover(context) } }
+            let early = ScanContext(options: options, snapshot: snapshot, projects: [], now: start)
+            for r in independent {
+                group.addTask {
+                    let found = await r.discover(early)
+                    progress?(.stepFinished(id: r.id, items: found.count, bytes: found.reduce(0) { $0 + $1.size }))
+                    return found
+                }
+            }
+            group.addTask {
+                let projects = ProjectFinder(options: options).find { visited in
+                    progress?(.projectSearch(foldersVisited: visited))
+                }
+                progress?(.stepFinished(id: ScanSteps.projectSearch, items: projects.count, bytes: 0))
+                let context = ScanContext(options: options, snapshot: snapshot, projects: projects, now: start)
+                return await withTaskGroup(of: [Item].self) { inner in
+                    for r in dependent {
+                        inner.addTask {
+                            let found = await r.discover(context)
+                            progress?(.stepFinished(id: r.id, items: found.count, bytes: found.reduce(0) { $0 + $1.size }))
+                            return found
+                        }
+                    }
+                    var all: [Item] = []
+                    for await batch in inner { all += batch }
+                    return all
+                }
+            }
             var all: [Item] = []
             for await batch in group { all += batch }
             return all

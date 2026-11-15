@@ -49,24 +49,13 @@ final class AppModel {
     var disk = DiskInfo.current()
     /// Bumped to ask a view that has `openWindow` to show the main window.
     var openMainRequest = 0
+    /// Live state of the running scan, for the progress UI.
+    var scanProgress = ScanProgress(startedAt: Date(), expectedDuration: 0)
 
     private var monitorTimer: Timer?
     /// A scan older than this is refreshed before acting on it.
     static let staleAfter: TimeInterval = 30 * 60
 
-    static let recipeTitles: [String: String] = [
-        "project-artifacts": "Project build folders",
-        "xcode-deriveddata": "DerivedData",
-        "xcode-archives": "Archives",
-        "xcode-devicesupport": "Device support",
-        "simulator-devices": "Simulator devices",
-        "simulator-runtimes": "Simulator runtimes",
-        "android-avd": "Emulators",
-        "android-sdk": "SDK packages",
-        "gradle-caches": "Caches",
-        "gradle-wrapper": "Gradle distributions",
-        "package-caches": "Package manager caches",
-    ]
 
     init() {
         SettingsKey.registerDefaults()
@@ -97,9 +86,17 @@ final class AppModel {
     func scan() async {
         guard !isScanning else { return }
         isScanning = true
-        let r = await Task.detached(priority: .userInitiated) { await Scanner().scan() }.value
+        scanProgress = ScanProgress(startedAt: Date(),
+                                    expectedDuration: UserDefaults.standard.double(forKey: "lastScanDuration"))
+        let r = await Task.detached(priority: .userInitiated) {
+            await Scanner().scan { event in
+                Task { @MainActor [weak self] in self?.scanProgress.apply(event) }
+            }
+        }.value
         result = r
         disk = r.disk
+        // A scan that sat behind a macOS permission prompt is not a useful estimate for the next one.
+        if r.duration < 300 { UserDefaults.standard.set(r.duration, forKey: "lastScanDuration") }
         // Default selection: only items that rebuild on their own and are not protected.
         selected = Set(r.safeSelection.map(\.id))
         isScanning = false
