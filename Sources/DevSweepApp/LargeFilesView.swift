@@ -10,7 +10,7 @@ struct LargeFilesView: View {
     }
 
     @Environment(AppModel.self) private var model
-    @AppStorage("largeFilesMinMB") private var minMB = 250
+    @AppStorage("largeFilesMinMB") private var minMB = 100
     @State private var kind: LargeFileKind?
     @State private var sort: Sort = .size
     @State private var focused: Item.ID?
@@ -29,19 +29,22 @@ struct LargeFilesView: View {
                     Text("All types").tag(LargeFileKind?.none)
                     ForEach(LargeFileKind.allCases) { Label($0.title, systemImage: $0.symbol).tag(LargeFileKind?.some($0)) }
                 }
+                .labelsHidden()
                 .fixedSize()
                 Picker("Bigger than", selection: $minMB) {
                     ForEach(Self.thresholds, id: \.mb) { Text("Over \($0.label)").tag($0.mb) }
                 }
+                .labelsHidden()
                 .fixedSize()
                 Picker("Sort", selection: $sort) {
                     ForEach(Sort.allCases) { Text($0.rawValue).tag($0) }
                 }
+                .labelsHidden()
                 .fixedSize()
-                Spacer()
-                Text("\(shown.count) files, \(ByteFormat.string(shown.reduce(0) { $0 + $1.size }))")
-                    .foregroundStyle(.secondary).monospacedDigit()
+                Spacer(minLength: 8)
                 Button("Clear selection") { model.clearSelection(in: .largeFiles) }
+                    .lineLimit(1)
+                    .fixedSize()
                     .disabled(!all.contains { model.isSelected($0) })
             }
             .padding(.horizontal, 20)
@@ -59,10 +62,12 @@ struct LargeFilesView: View {
                     ForEach(shown) { item in LargeFileRow(item: item).tag(item.id) }
                 }
                 .listStyle(.inset)
+                .frame(minHeight: 120, maxHeight: .infinity)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .navigationTitle("Large files")
-        .navigationSubtitle(ByteFormat.string(model.result?.total(ecosystem: .largeFiles) ?? 0))
+        .navigationSubtitle("\(shown.count) \(shown.count == 1 ? "file" : "files"), \(ByteFormat.string(shown.reduce(0) { $0 + $1.size }))")
         .inspector(isPresented: $showInspector) {
             Group {
                 if let id = focused, let item = all.first(where: { $0.id == id }) {
@@ -97,7 +102,7 @@ struct LargeFilesView: View {
                 Text("These are your own files").font(.callout.bold())
                 Text("DevSweep cannot know if you still need them, so nothing is selected for you and they are never part of a safe clean, a rule or an agent's clean. Removed files go to the Trash first.")
                     .font(.callout).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .padding(12)
