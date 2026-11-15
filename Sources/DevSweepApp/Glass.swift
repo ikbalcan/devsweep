@@ -4,9 +4,9 @@ import SwiftUI
 /// used for the control layer (floating bars, primary buttons), never for content like lists or cards.
 extension View {
     @ViewBuilder
-    func glassCapsule() -> some View {
+    func glassCapsule(tint: Color? = nil) -> some View {
         if #available(macOS 26.0, *) {
-            self.glassEffect(.regular, in: .capsule)
+            self.glassEffect(.regular.tint(tint), in: .capsule)
         } else {
             self.modifier(GlassFallback(shape: Capsule()))
         }

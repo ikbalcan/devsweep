@@ -50,6 +50,8 @@ struct RootView: View {
     @State private var showReview = false
     @Environment(\.dismissWindow) private var dismissWindow
 
+    private var showsSelectionBar: Bool { model.result != nil && route != .automation }
+
     var body: some View {
         NavigationSplitView {
             Sidebar(route: $route)
@@ -72,9 +74,12 @@ struct RootView: View {
                 }
             }
             .animation(.smooth, value: model.isScanning)
-            .safeAreaInset(edge: .bottom, spacing: 0) {
+            // Scroll content runs under the bar (extra bottom margin keeps the last row reachable),
+            // so the glass has something to refract.
+            .contentMargins(.bottom, showsSelectionBar ? 84 : 0, for: .scrollContent)
+            .overlay(alignment: .bottom) {
                 // Selection only matters where items are listed.
-                if model.result != nil && route != .automation { SelectionBar(showReview: $showReview) }
+                if showsSelectionBar { SelectionBar(showReview: $showReview) }
             }
         }
         .toolbar {
@@ -164,7 +169,7 @@ struct SelectionBar: View {
         .padding(.leading, 20)
         .padding(.trailing, 8)
         .padding(.vertical, 8)
-        .glassCapsule()
+        .glassCapsule(tint: items.isEmpty ? nil : .green.opacity(0.22))
         .padding(.bottom, 16)
         .frame(maxWidth: .infinity)
     }
