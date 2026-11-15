@@ -122,7 +122,9 @@ struct GradleCachesRecipe: Recipe {
             guard FileManager.default.isDirectory(url) else { return nil }
             return Item(recipeID: id, key: t.0, ecosystem: .gradle, tier: .rebuilds, name: t.1, detail: t.2,
                         paths: [url], size: sizes[url] ?? 0,
-                        lossNote: "The next Android/Gradle build downloads its dependencies again, so it is slower once.",
+                        lossNote: t.0 == "daemon"
+                            ? "Old daemon logs and registry. Nothing is lost; Gradle recreates the folder."
+                            : "The next Android/Gradle build downloads its dependencies again, so it is slower once.",
                         protection: protection, lastUsed: FileManager.default.modificationDate(url))
         }
     }

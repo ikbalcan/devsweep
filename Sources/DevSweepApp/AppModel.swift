@@ -75,6 +75,8 @@ final class AppModel {
     /// The window should close itself once if the user asked to start in the menu bar only.
     var launchWindowHandled = false
     var didLaunchScan = false
+    /// Once the user changes the selection, rescans must not silently reselect everything.
+    var selectionCustomized = false
 
     init() {
         SettingsKey.registerDefaults()
@@ -125,8 +127,13 @@ final class AppModel {
         ScanCache.save(r)
         // A scan that sat behind a macOS permission prompt is not a useful estimate for the next one.
         if r.duration < 300 { UserDefaults.standard.set(r.duration, forKey: durationKey) }
-        // Default selection: only items that rebuild on their own and are not protected.
-        selected = Set(r.safeSelection.map(\.id))
+        if selectionCustomized {
+            // Keep what the user picked; drop items that are gone or became protected.
+            selected = selected.intersection(Set(r.items.filter { !$0.isProtected }.map(\.id)))
+        } else {
+            // Default selection: only items that rebuild on their own and are not protected.
+            selected = Set(r.safeSelection.map(\.id))
+        }
         isScanning = false
     }
 
@@ -140,14 +147,17 @@ final class AppModel {
 
     func setSelected(_ item: Item, _ on: Bool) {
         guard !item.isProtected else { return }
+        selectionCustomized = true
         if on { selected.insert(item.id) } else { selected.remove(item.id) }
     }
 
     func selectAllSafe(in eco: Ecosystem) {
+        selectionCustomized = true
         for i in items(in: eco) where i.tier == .rebuilds && !i.isProtected { selected.insert(i.id) }
     }
 
     func clearSelection(in eco: Ecosystem) {
+        selectionCustomized = true
         for i in items(in: eco) { selected.remove(i.id) }
     }
 

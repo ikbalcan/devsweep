@@ -152,14 +152,14 @@ struct SelectionBar: View {
                     ForEach(tiers, id: \.self) { Circle().fill($0.color).frame(width: 8, height: 8) }
                 }
                 Text("\(ByteFormat.string(model.selectedSize)) selected").bold().monospacedDigit()
-                Text("\(items.count) items").foregroundStyle(.secondary)
+                Text(items.count == 1 ? "1 item" : "\(items.count) items").foregroundStyle(.secondary)
             }
             Button("Review & Clean…") { showReview = true }
                 .primaryGlassButton()
                 .tint(.green)
                 .controlSize(.large)
                 .disabled(items.isEmpty || model.isScanning)
-                .keyboardShortcut(.defaultAction)
+                // No Return shortcut here: Return in the bar and again in the sheet would clean without a look.
         }
         .padding(.leading, 20)
         .padding(.trailing, 8)
