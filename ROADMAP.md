@@ -24,6 +24,8 @@ MCP server (`disk_status`, `plan_cleanup`, `clean_safe`), automation rules (off 
 - Glass fallback for macOS 14/15 (thin material, lit rim, soft shadow). Real Liquid Glass needs macOS 26.
 
 ## Next
+See `docs/NOTES.md` for the current status, decisions and the ordered to-do list.
+- **P1 · Agent worktrees recipe**: find forgotten git worktrees made by AI agents and their build folders.
 - **P1 · Stable local signing** so macOS stops asking for folder access after every build.
 - **P2 · Verify Docker** on a Mac that has it, and the glass look on macOS 26.
 
