@@ -61,6 +61,12 @@ Every clean (app, menu bar, notification, CLI, MCP, rules) is logged in
 
 ## Status
 
+v0.6: agent worktrees. Finds git worktrees left behind by Cursor, Claude Code and Codex (and any other
+worktree of your repositories) and removes them with `git worktree remove`, never `--force`. Worktrees
+with uncommitted or untracked files, commits on no branch, a lock, or use in the last 7 days are kept;
+the branch always stays. Fixed: the safe clean always reported one failure (Dart analysis cache);
+history now keeps the reason for every skipped item.
+
 v0.5: rescans in about a second (unchanged folders reuse their size for up to a day; Rescan Fully
 with ⇧⌘R or `--full`), Docker (build cache, unused images, stopped containers, anonymous volumes via
 `docker ... prune`), Cursor's chat database shows how little compacting would free, closer glass look on
@@ -78,6 +84,6 @@ notifications, menu bar text, Dock icon, open at login).
 
 v0.1: scanner, 11 recipes, app (overview, area detail with inspector, review sheet), CLI.
 
-Next: MCP server and automation rules (v0.3), signed and notarized releases (v1.0).
+Next: see `ROADMAP.md` and `docs/NOTES.md`.
 
 Notifications and open-at-login only work from the bundled app (`scripts/bundle.sh`), not from `swift run`.

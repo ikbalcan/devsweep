@@ -41,7 +41,7 @@ public struct ScanContext: Sendable {
 
 public extension Scanner {
     /// Recipes that read the discovered project list (and so wait for the project search).
-    static let needsProjects: Set<String> = ["project-artifacts", "gradle-wrapper"]
+    static let needsProjects: Set<String> = ["project-artifacts", "gradle-wrapper", "worktrees"]
 }
 
 public protocol Recipe: Sendable {
@@ -63,6 +63,7 @@ public enum Recipes {
         GradleWrapperRecipe(),
         PackageCachesRecipe(),
         AIToolsRecipe(),
+        WorktreesRecipe(),
         DockerRecipe(),
     ]
 }
@@ -90,6 +91,7 @@ public enum ScanSteps {
         "gradle-wrapper": "Gradle distributions",
         "package-caches": "Package manager caches",
         "ai-tools": "AI tools & editors",
+        "worktrees": "Agent worktrees",
         "docker": "Docker",
     ]
     public static func title(_ id: String) -> String { titles[id] ?? id }

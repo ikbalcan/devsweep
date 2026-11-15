@@ -115,8 +115,23 @@ public struct Cleaner: Sendable {
         return outcomes
     }
 
+    /// git is only ever run as `git -C <repo> worktree remove <path>`: no --force, and the
+    /// worktree path must pass the same safety check as any removed folder.
+    func checkWorktreeRemoval(_ args: [String]) throws {
+        guard args.count == 6, args[1] == "-C", args[3] == "worktree", args[4] == "remove",
+              !args[5].hasPrefix("-"), !args[2].hasPrefix("-") else {
+            throw SafetyViolation.unexpectedCommand(args.joined(separator: " "))
+        }
+        try PathSafety.check(URL(fileURLWithPath: args[5]), allowedRoots: allowedRoots, home: home)
+    }
+
     func liveProtection(_ item: Item, _ s: SystemSnapshot) -> String? {
         switch item.recipeID {
+        case "worktrees":
+            if let path = item.paths.first, let wt = WorktreesRecipe.worktree(at: path),
+               let why = WorktreesRecipe.problem(wt) {
+                return why
+            }
         case "gradle-caches":
             if s.gradleDaemonRunning { return "Gradle daemon started running" }
             if s.androidStudioRunning { return "Android Studio was opened" }
@@ -137,11 +152,17 @@ public struct Cleaner: Sendable {
     private func clean(_ item: Item, mode: RemovalMode) -> CleanOutcome {
         switch item.action {
         case .command(let args):
-            guard let exe = args.first, Self.allowedExecutables.contains(exe) else {
+            if args.first == "/usr/bin/git" {
+                do { try checkWorktreeRemoval(args) } catch {
+                    return CleanOutcome(item: item, freed: 0, movedToTrash: 0, error: "\(error)")
+                }
+            } else if let exe = args.first, Self.allowedExecutables.contains(exe) {
+                // allowed
+            } else {
                 return CleanOutcome(item: item, freed: 0, movedToTrash: 0,
                                     error: SafetyViolation.unexpectedCommand(args.joined(separator: " ")).description)
             }
-            let r = Shell.run(exe, Array(args.dropFirst()), timeout: 600)
+            let r = Shell.run(args[0], Array(args.dropFirst()), timeout: 600)
             return r.ok
                 ? CleanOutcome(item: item, freed: item.size, movedToTrash: 0, error: nil)
                 : CleanOutcome(item: item, freed: 0, movedToTrash: 0,

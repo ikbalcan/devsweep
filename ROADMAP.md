@@ -23,9 +23,15 @@ MCP server (`disk_status`, `plan_cleanup`, `clean_safe`), automation rules (off 
   old chats in Cursor instead.
 - Glass fallback for macOS 14/15 (thin material, lit rim, soft shadow). Real Liquid Glass needs macOS 26.
 
+## Done in v0.6
+- Agent worktrees recipe (Cursor, Claude Code, Codex, any registered git worktree), removed only through
+  `git worktree remove` without --force. Protected: uncommitted or untracked files, commits on no branch,
+  locked, used in the last 7 days, or open in a running process.
+- Safe clean no longer fails on the Dart analysis cache; the scanner runs the cleaner's path check up front.
+- History records why each item was skipped.
+
 ## Next
 See `docs/NOTES.md` for the current status, decisions and the ordered to-do list.
-- **P1 · Agent worktrees recipe**: find forgotten git worktrees made by AI agents and their build folders.
 - **P1 · Stable local signing** so macOS stops asking for folder access after every build.
 - **P2 · Verify Docker** on a Mac that has it, and the glass look on macOS 26.
 

@@ -193,6 +193,55 @@ final class SandboxHomeTests: XCTestCase {
                       "every cache path must be at least two levels deep, or the cleaner refuses it")
     }
 
+    func testWorktreesAreFoundProtectedAndRemovedThroughGit() async throws {
+        let repo = home.appendingPathComponent("Development/app")
+        try make("Development/app/README.md", file: true)
+        func git(_ args: String...) {
+            let r = Shell.run("/usr/bin/git", ["-C", repo.path, "-c", "user.name=t", "-c", "user.email=t@t"] + args)
+            XCTAssertTrue(r.ok, r.stderr)
+        }
+        git("init", "-q", "-b", "main"); git("add", "."); git("commit", "-qm", "init")
+        git("worktree", "add", "-q", ".claude/worktrees/clean", "-b", "agent/clean")
+        git("worktree", "add", "-q", ".claude/worktrees/dirty", "-b", "agent/dirty")
+        try make("Development/app/.claude/worktrees/dirty/notes.txt", file: true)  // untracked work
+        git("worktree", "add", "-q", "--detach", ".claude/worktrees/detached")
+        let detached = repo.appendingPathComponent(".claude/worktrees/detached")
+        _ = Shell.run("/usr/bin/git", ["-C", detached.path, "-c", "user.name=t", "-c", "user.email=t@t",
+                                       "commit", "-q", "--allow-empty", "-m", "orphan work"])
+
+        let later = Date().addingTimeInterval(30 * 86_400)  // as if nobody touched them for a month
+        let ctx = ScanContext(options: ScanOptions(home: home), snapshot: SystemSnapshot(commandLines: []),
+                              projects: [Project(root: repo)], now: later)
+        let items = await WorktreesRecipe().discover(ctx)
+        let byName = Dictionary(uniqueKeysWithValues: items.map { ($0.paths[0].lastPathComponent, $0) })
+        XCTAssertEqual(Set(byName.keys), ["clean", "dirty", "detached"])
+        XCTAssertNil(byName["clean"]?.protection)
+        XCTAssertEqual(byName["clean"]?.detail.hasPrefix("Claude Code · branch agent/clean"), true)
+        XCTAssertEqual(byName["dirty"]?.protection, "Has 1 uncommitted or untracked file")
+        XCTAssertEqual(byName["detached"]?.protection, "Has commits that are on no branch")
+
+        // Touched today: kept, an agent may still be working there.
+        let today = ScanContext(options: ScanOptions(home: home), snapshot: SystemSnapshot(commandLines: []),
+                                projects: [Project(root: repo)], now: Date())
+        let fresh = await WorktreesRecipe().discover(today).first { $0.paths[0].lastPathComponent == "clean" }
+        XCTAssertEqual(fresh?.protection?.contains("an agent may still be working here"), true)
+
+        let cleaner = Cleaner(home: home, allowedRoots: [home])
+        let outcomes = cleaner.clean(items, mode: { _ in .delete })
+        XCTAssertEqual(outcomes.filter(\.succeeded).map { $0.item.paths[0].lastPathComponent }, ["clean"])
+        XCTAssertFalse(fm.fileExists(atPath: repo.appendingPathComponent(".claude/worktrees/clean").path))
+        XCTAssertTrue(fm.fileExists(atPath: repo.appendingPathComponent(".claude/worktrees/dirty/notes.txt").path))
+        let branches = Shell.run("/usr/bin/git", ["-C", repo.path, "branch", "--list", "agent/clean"]).stdout
+        XCTAssertTrue(branches.contains("agent/clean"), "the branch survives the worktree")
+
+        // git is only allowed in one exact shape.
+        XCTAssertThrowsError(try cleaner.checkWorktreeRemoval(["/usr/bin/git", "-C", repo.path, "worktree", "remove",
+                                                                "--force", detached.path]))
+        XCTAssertThrowsError(try cleaner.checkWorktreeRemoval(["/usr/bin/git", "-C", repo.path, "clean", "-fdx"]))
+        XCTAssertThrowsError(try cleaner.checkWorktreeRemoval(["/usr/bin/git", "-C", repo.path, "worktree", "remove",
+                                                                "/etc/somewhere"]))
+    }
+
     func testAIToolsFindsCachesOrphansAndOllama() async throws {
         let support = "Library/Application Support/Cursor"
         try make("\(support)/Cache/data_0", file: true)
