@@ -7,12 +7,14 @@ struct DevSweepApp: App {
     @State private var model = AppModel()
 
     init() {
+        SettingsKey.registerDefaults()
         // Lets the window come to the front when launched as a bare binary (swift run).
-        NSApplication.shared.setActivationPolicy(.regular)
+        let showInDock = UserDefaults.standard.bool(forKey: SettingsKey.showInDock)
+        NSApplication.shared.setActivationPolicy(showInDock ? .regular : .accessory)
     }
 
     var body: some Scene {
-        WindowGroup("DevSweep") {
+        Window("DevSweep", id: "main") {
             RootView()
                 .environment(model)
                 .frame(minWidth: 960, minHeight: 620)
@@ -24,6 +26,17 @@ struct DevSweepApp: App {
                 Button("Rescan") { Task { await model.scan() } }
                     .keyboardShortcut("r", modifiers: .command)
             }
+        }
+
+        MenuBarExtra {
+            MenuBarView().environment(model)
+        } label: {
+            MenuBarLabel().environment(model)
+        }
+        .menuBarExtraStyle(.window)
+
+        Settings {
+            SettingsView().environment(model)
         }
     }
 }

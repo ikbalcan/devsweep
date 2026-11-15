@@ -34,6 +34,42 @@ final class PathSafetyTests: XCTestCase {
     }
 }
 
+final class LowDiskPolicyTests: XCTestCase {
+    let gb: Int64 = 1_000_000_000
+    lazy var policy = LowDiskPolicy(warnBytes: 15 * gb, criticalBytes: 5 * gb, rearmMarginBytes: 2 * gb)
+
+    func testLevels() {
+        XCTAssertEqual(policy.level(20 * gb), .ok)
+        XCTAssertEqual(policy.level(10 * gb), .low)
+        XCTAssertEqual(policy.level(2 * gb), .critical)
+    }
+
+    func testNotifiesOncePerStepDownAndRearmsWithMargin() {
+        var last = DiskLevel.ok
+        func step(_ free: Int64) -> DiskLevel? {
+            let r = policy.evaluate(available: free * gb, lastNotified: last)
+            last = r.lastNotified
+            return r.notify
+        }
+        XCTAssertNil(step(30))
+        XCTAssertEqual(step(14), .low)
+        XCTAssertNil(step(13))            // still low: no repeat
+        XCTAssertNil(step(16))            // above warn but inside the margin: not re-armed
+        XCTAssertNil(step(14))
+        XCTAssertEqual(step(4), .critical)
+        XCTAssertNil(step(3))
+        XCTAssertNil(step(12))            // recovered to low: no new low warning
+        XCTAssertNil(step(18))            // re-armed
+        XCTAssertEqual(step(14), .low)
+    }
+
+    func testCompactBytes() {
+        XCTAssertEqual(CompactBytes.string(19_660_000_000), "20 GB")
+        XCTAssertEqual(CompactBytes.string(2_300_000_000), "2.3 GB")
+        XCTAssertEqual(CompactBytes.string(640_000_000), "640 MB")
+    }
+}
+
 final class ParsingTests: XCTestCase {
     func testDerivedDataDisplayName() {
         XCTAssertEqual(DerivedDataRecipe.displayName("Runner-cvhfebcvlxujzzebrdqomjgnkbao"), "Runner")

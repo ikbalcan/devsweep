@@ -39,7 +39,12 @@ func scan() async -> ScanResult {
 }
 
 func printStatus(_ r: ScanResult) {
-    let level = r.disk.available < 5_000_000_000 ? "critical" : r.disk.available < 15_000_000_000 ? "low" : "ok"
+    let level: String
+    switch LowDiskPolicy().level(r.disk.available) {
+    case .ok: level = "ok"
+    case .low: level = "low"
+    case .critical: level = "critical"
+    }
     print("Free \(ByteFormat.string(r.disk.available)) of \(ByteFormat.string(r.disk.total))   \(level)")
     for t in Tier.allCases {
         let items = r.items.filter { $0.tier == t }

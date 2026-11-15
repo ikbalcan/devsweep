@@ -43,5 +43,12 @@ Has-data items can only be removed from the app, one by one.
 
 ## Status
 
+v0.2: menu bar popover with live free space and one-click safe clean, low-disk notifications
+(one per step down, re-armed after recovery, with a "Free X safely" action), settings (threshold,
+notifications, menu bar text, Dock icon, open at login).
+
 v0.1: scanner, 11 recipes, app (overview, area detail with inspector, review sheet), CLI.
-Next: menu bar and low-disk notifications (v0.2), MCP server and automation rules (v0.3), signed releases (v1.0).
+
+Next: MCP server and automation rules (v0.3), signed and notarized releases (v1.0).
+
+Notifications and open-at-login only work from the bundled app (`scripts/bundle.sh`), not from `swift run`.
