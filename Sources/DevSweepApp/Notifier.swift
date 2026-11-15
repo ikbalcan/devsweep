@@ -69,12 +69,13 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
-    func postCleanResult(_ s: CleanSummary) {
+    func postCleanResult(_ s: CleanSummary, title: String? = nil) {
         guard isAvailable else { return }
         let content = UNMutableNotificationContent()
-        content.title = s.failures.isEmpty
+        let freed = s.failures.isEmpty
             ? "Freed \(CompactBytes.string(s.freed))"
             : "Freed \(CompactBytes.string(s.freed)), \(s.failures.count) item(s) skipped"
+        content.title = title.map { "\($0) · \(freed)" } ?? freed
         content.body = "Free space \(CompactBytes.string(s.before)) → \(CompactBytes.string(s.after))"
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "clean-result", content: content, trigger: nil))
     }
@@ -93,7 +94,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         Task { @MainActor in
             guard let model = self.model else { return }
             if category == Self.lowDiskCategory && action == Self.freeSafeAction {
-                if let summary = await model.quickClean() { self.postCleanResult(summary) }
+                if let summary = await model.quickClean(source: "notification") { self.postCleanResult(summary) }
             } else if action == UNNotificationDefaultActionIdentifier {
                 model.requestMainWindow()
             }

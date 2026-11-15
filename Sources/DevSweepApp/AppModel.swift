@@ -6,6 +6,7 @@ import Observation
 enum Route: Hashable {
     case overview
     case ecosystem(Ecosystem)
+    case automation
 }
 
 struct CleanSummary {
@@ -22,6 +23,13 @@ enum SettingsKey {
     static let showFreeInMenuBar = "showFreeInMenuBar"
     static let showInDock = "showInDock"
     static let lastNotifiedLevel = "lastNotifiedLevel"
+    static let openWindowAtLaunch = "openWindowAtLaunch"
+    static let ruleWeeklySweep = "ruleWeeklySweep"
+    static let ruleAutoCleanCritical = "ruleAutoCleanCritical"
+    static let ruleRemoveUnavailableSims = "ruleRemoveUnavailableSims"
+    static let lastWeeklySweep = "lastWeeklySweep"
+    static let lastAutoClean = "lastAutoClean"
+    static let lastSimCleanup = "lastSimCleanup"
 
     static func registerDefaults() {
         UserDefaults.standard.register(defaults: [
@@ -30,6 +38,11 @@ enum SettingsKey {
             showFreeInMenuBar: true,
             showInDock: true,
             lastNotifiedLevel: DiskLevel.ok.rawValue,
+            openWindowAtLaunch: true,
+            // Rules that remove things on their own start off; the user turns them on.
+            ruleWeeklySweep: false,
+            ruleAutoCleanCritical: false,
+            ruleRemoveUnavailableSims: false,
         ])
     }
 }
@@ -57,8 +70,21 @@ final class AppModel {
     static let staleAfter: TimeInterval = 30 * 60
 
 
+    /// Recent cleans from every source, for the Automation screen.
+    var history: [CleanHistory.Entry] = []
+    /// The window should close itself once if the user asked to start in the menu bar only.
+    var launchWindowHandled = false
+    var didLaunchScan = false
+
     init() {
         SettingsKey.registerDefaults()
+        // Open with the last scan right away; a fresh scan runs in the background.
+        if let cached = ScanCache.load() {
+            result = cached
+            disk = DiskInfo.current()
+            selected = Set(cached.safeSelection.map(\.id))
+        }
+        history = CleanHistory.load(limit: 30)
     }
 
     // MARK: Settings
@@ -95,6 +121,7 @@ final class AppModel {
         }.value
         result = r
         disk = r.disk
+        ScanCache.save(r)
         // A scan that sat behind a macOS permission prompt is not a useful estimate for the next one.
         if r.duration < 300 { UserDefaults.standard.set(r.duration, forKey: "lastScanDuration") }
         // Default selection: only items that rebuild on their own and are not protected.
@@ -127,23 +154,23 @@ final class AppModel {
 
     /// Cleans what the user selected in the main window, with the modes chosen in the review sheet.
     func clean(modes: [Tier: RemovalMode]) async {
-        lastSummary = await run(selectedItems, modes: modes)
+        lastSummary = await run(selectedItems, modes: modes, source: "app")
     }
 
     /// One-click clean from the menu bar or a notification: always rescans first, then removes
     /// only unprotected Rebuilds items. Protections are checked again by the Cleaner itself.
     @discardableResult
-    func quickClean() async -> CleanSummary? {
+    func quickClean(source: String = "menu bar") async -> CleanSummary? {
         guard !isCleaning else { return nil }
         await scan()
         let targets = safeItems
         guard !targets.isEmpty else { return nil }
-        let summary = await run(targets, modes: [:])
+        let summary = await run(targets, modes: [:], source: source)
         quickSummary = summary
         return summary
     }
 
-    private func run(_ targets: [Item], modes: [Tier: RemovalMode]) async -> CleanSummary? {
+    private func run(_ targets: [Item], modes: [Tier: RemovalMode], source: String) async -> CleanSummary? {
         guard !targets.isEmpty, !isCleaning else { return nil }
         isCleaning = true
         let before = DiskInfo.current().available
@@ -153,6 +180,8 @@ final class AppModel {
             })
         }.value
         let after = DiskInfo.current().available
+        CleanHistory.record(outcomes, source: source)
+        history = CleanHistory.load(limit: 30)
         let summary = CleanSummary(
             freed: outcomes.reduce(0) { $0 + $1.freed },
             trashed: outcomes.reduce(0) { $0 + $1.movedToTrash },
@@ -172,7 +201,10 @@ final class AppModel {
         applyDockPreference()
         checkDisk()
         monitorTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.checkDisk() }
+            Task { @MainActor in
+                self?.checkDisk()
+                await self?.runRules()
+            }
         }
     }
 
@@ -188,6 +220,67 @@ final class AppModel {
             while isScanning { try? await Task.sleep(for: .seconds(1)) }
             await scanIfStale()
             Notifier.shared.postLowDisk(level: notifyLevel, available: disk.available, safeBytes: safeSize)
+        }
+    }
+
+    // MARK: Always keep
+
+    func isKept(_ item: Item) -> Bool { SharedSettings.keepList.contains(item.id) }
+
+    func setKept(_ item: Item, _ keep: Bool) {
+        var list = SharedSettings.keepList
+        if keep { list.insert(item.id) } else { list.remove(item.id) }
+        SharedSettings.keepList = list
+        guard var r = result, let i = r.items.firstIndex(where: { $0.id == item.id }) else { return }
+        var items = r.items
+        if keep && items[i].protection == nil {
+            items[i].protection = "You chose to always keep this"
+            selected.remove(item.id)
+        } else if !keep && items[i].protection == "You chose to always keep this" {
+            items[i].protection = nil
+        }
+        r = ScanResult(items: items, disk: r.disk, scannedAt: r.scannedAt, duration: r.duration)
+        result = r
+    }
+
+    // MARK: Automation rules
+
+    private var isRunningRule = false
+
+    /// Called every minute. Each rule is off by default and rate-limited.
+    func runRules(now: Date = Date()) async {
+        guard !isRunningRule, !isScanning, !isCleaning else { return }
+        isRunningRule = true
+        defer { isRunningRule = false }
+        let d = UserDefaults.standard
+
+        if d.bool(forKey: SettingsKey.ruleAutoCleanCritical), level == .critical,
+           now.timeIntervalSince(d.object(forKey: SettingsKey.lastAutoClean) as? Date ?? .distantPast) > 3600 {
+            d.set(now, forKey: SettingsKey.lastAutoClean)
+            if let s = await quickClean(source: "rule: low disk") {
+                Notifier.shared.postCleanResult(s, title: "Disk was almost full")
+            }
+        }
+
+        if d.bool(forKey: SettingsKey.ruleWeeklySweep),
+           now.timeIntervalSince(d.object(forKey: SettingsKey.lastWeeklySweep) as? Date ?? .distantPast) > 7 * 86_400 {
+            d.set(now, forKey: SettingsKey.lastWeeklySweep)
+            await scan()
+            let cutoff = now.addingTimeInterval(-30 * 86_400)
+            let stale = items.filter { $0.ecosystem == .projects && $0.tier == .rebuilds && !$0.isProtected
+                && ($0.lastUsed.map { $0 < cutoff } ?? false) }
+            if let s = await run(stale, modes: [:], source: "rule: weekly sweep"), s.freed > 0 {
+                Notifier.shared.postCleanResult(s, title: "Weekly sweep of stale projects")
+            }
+        }
+
+        if d.bool(forKey: SettingsKey.ruleRemoveUnavailableSims),
+           now.timeIntervalSince(d.object(forKey: SettingsKey.lastSimCleanup) as? Date ?? .distantPast) > 86_400 {
+            d.set(now, forKey: SettingsKey.lastSimCleanup)
+            let unavailable = items.filter { $0.recipeID == "simulator-devices" && $0.detail.contains("Unavailable") && !$0.isProtected }
+            if !unavailable.isEmpty {
+                _ = await run(unavailable, modes: [:], source: "rule: unavailable simulators")
+            }
         }
     }
 

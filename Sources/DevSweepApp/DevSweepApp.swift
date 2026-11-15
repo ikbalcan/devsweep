@@ -45,6 +45,7 @@ struct RootView: View {
     @Environment(AppModel.self) private var model
     @State private var route: Route? = .overview
     @State private var showReview = false
+    @Environment(\.dismissWindow) private var dismissWindow
 
     var body: some View {
         NavigationSplitView {
@@ -56,6 +57,7 @@ struct RootView: View {
                     switch route ?? .overview {
                     case .overview: OverviewView(result: result, route: $route)
                     case .ecosystem(let eco): CategoryView(ecosystem: eco)
+                    case .automation: AutomationView()
                     }
                 } else {
                     ScanProgressView()
@@ -68,7 +70,8 @@ struct RootView: View {
             }
             .animation(.smooth, value: model.isScanning)
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                if model.result != nil { SelectionBar(showReview: $showReview) }
+                // Selection only matters where items are listed.
+                if model.result != nil && route != .automation { SelectionBar(showReview: $showReview) }
             }
         }
         .toolbar {
@@ -79,7 +82,22 @@ struct RootView: View {
             }
         }
         .sheet(isPresented: $showReview) { ReviewSheet() }
-        .task { if model.result == nil { await model.scan() } }
+        .task {
+            // Cached results are already on screen; refresh them once per launch, then only when stale.
+            if !model.didLaunchScan {
+                model.didLaunchScan = true
+                await model.scan()
+            } else {
+                await model.scanIfStale()
+            }
+        }
+        .onAppear {
+            guard !model.launchWindowHandled else { return }
+            model.launchWindowHandled = true
+            if !UserDefaults.standard.bool(forKey: SettingsKey.openWindowAtLaunch) {
+                dismissWindow(id: "main")
+            }
+        }
     }
 }
 
@@ -96,6 +114,9 @@ struct Sidebar: View {
                     row(eco.title, eco.symbol, model.result?.total(ecosystem: eco))
                         .tag(Route.ecosystem(eco))
                 }
+            }
+            Section {
+                row("Automation", "clock.arrow.circlepath", nil).tag(Route.automation)
             }
         }
         .listStyle(.sidebar)

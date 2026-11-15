@@ -41,7 +41,31 @@ devsweep clean --tier rebuilds --yes         # remove all unprotected Rebuilds i
 
 Has-data items can only be removed from the app, one by one.
 
+## AI agents (MCP)
+
+`devsweep mcp` is a Model Context Protocol server over stdio. Add it to Claude Code:
+
+```bash
+claude mcp add devsweep -- /Applications/DevSweep.app/Contents/Resources/devsweep mcp
+```
+
+| Tool | What it does |
+|---|---|
+| `disk_status` | Free space and, from the cached last scan, how much is safe to free. Instant. |
+| `plan_cleanup` | Read-only list of what a tier would remove and what stays protected and why. |
+| `clean_safe` | Scans, then removes unprotected **Rebuilds** items only. Off when "Allow AI agents to clean" is off. |
+
+Every clean (app, menu bar, notification, CLI, MCP, rules) is logged in
+`~/Library/Application Support/DevSweep/history.jsonl` and shown under Automation > History
+(`devsweep history` in the terminal).
+
 ## Status
+
+v0.4: MCP server, automation rules (weekly stale-project sweep, auto-clean when almost full,
+remove unavailable simulators; all off by default), "Always keep" list shared by every entry point,
+clean history, instant launch from the cached last scan, option to start in the menu bar only.
+
+v0.3: AI tools & editors area, live scan progress, Liquid Glass controls, app icon.
 
 v0.2: menu bar popover with live free space and one-click safe clean, low-disk notifications
 (one per step down, re-armed after recovery, with a "Free X safely" action), settings (threshold,

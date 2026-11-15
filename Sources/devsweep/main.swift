@@ -11,6 +11,8 @@ USAGE
                                         Remove every unprotected item of that tier
   devsweep clean --tier redownload [--dry-run] [--yes] [--delete]
                                         Re-download items go to the Trash unless --delete
+  devsweep history                      Recent cleans, from the app, the CLI, agents and rules
+  devsweep mcp                          Run as an MCP server over stdio, for AI agents
 
 Tiers
   rebuilds     comes back on the next build or install (deleted outright)
@@ -35,7 +37,9 @@ func fail(_ message: String) -> Never {
 
 func scan() async -> ScanResult {
     if !flag("--json") { FileHandle.standardError.write(Data("Scanning…\n".utf8)) }
-    return await Scanner().scan()
+    let r = await Scanner().scan()
+    ScanCache.save(r)
+    return r
 }
 
 func printStatus(_ r: ScanResult) {
@@ -115,6 +119,7 @@ case "clean":
     }
     let before = DiskInfo.current().available
     let out = Cleaner().clean(targets, mode: { _ in mode })
+    CleanHistory.record(out, source: "cli")
     let failed = out.filter { !$0.succeeded }
     for f in failed { print("  ✗ \(f.item.name): \(f.error ?? "")") }
     let after = DiskInfo.current().available
@@ -122,6 +127,20 @@ case "clean":
     print("✓ Done. Free space \(ByteFormat.string(before)) → \(ByteFormat.string(after))"
           + (trashed > 0 ? " · \(ByteFormat.string(trashed)) in Trash (empty it to free that space)" : ""))
     if !failed.isEmpty { exit(1) }
+
+case "mcp":
+    await MCPServer().run()
+
+case "history":
+    let entries = CleanHistory.load(limit: 30)
+    if entries.isEmpty { print("No cleans recorded yet.") }
+    let f = DateFormatter()
+    f.dateStyle = .short
+    f.timeStyle = .short
+    for e in entries {
+        print("\(f.string(from: e.date))  \(pad(e.source, 16)) \(lpad(ByteFormat.string(e.freed), 9))  \(e.items.count) items"
+              + (e.failures > 0 ? ", \(e.failures) skipped" : ""))
+    }
 
 default:
     print(usage)

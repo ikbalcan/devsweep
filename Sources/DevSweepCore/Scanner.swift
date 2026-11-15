@@ -9,9 +9,13 @@ public struct ScanOptions: Sendable {
     /// Where to look for projects. Hidden folders, ~/Library and media folders are skipped.
     public var projectRoots: [URL]
     public var projectSearchDepth: Int
+    /// Item IDs the user chose to always keep.
+    public var keepList: Set<String>
 
     public init(home: URL = URL(fileURLWithPath: NSHomeDirectory()), activeProjectDays: Int = 7,
-                archiveKeepDays: Int = 90, projectRoots: [URL]? = nil, projectSearchDepth: Int = 5) {
+                archiveKeepDays: Int = 90, projectRoots: [URL]? = nil, projectSearchDepth: Int = 5,
+                keepList: Set<String>? = nil) {
+        self.keepList = keepList ?? SharedSettings.keepList
         self.home = home
         self.activeProjectDays = activeProjectDays
         self.archiveKeepDays = archiveKeepDays
@@ -139,7 +143,13 @@ public struct Scanner: Sendable {
             for await batch in group { all += batch }
             return all
         }
-        let sorted = items.filter { $0.size > 0 }.sorted { a, b in
+        let keep = options.keepList
+        let marked = items.map { item -> Item in
+            var i = item
+            if keep.contains(i.id) && i.protection == nil { i.protection = "You chose to always keep this" }
+            return i
+        }
+        let sorted = marked.filter { $0.size > 0 }.sorted { a, b in
             a.ecosystem.rawValue != b.ecosystem.rawValue ? a.ecosystem.rawValue < b.ecosystem.rawValue : a.size > b.size
         }
         return ScanResult(items: sorted, disk: DiskInfo.current(for: options.home), scannedAt: start,

@@ -171,9 +171,19 @@ struct ItemInspector: View {
                     }
                 }
 
-                if !item.paths.isEmpty {
-                    Button("Reveal in Finder") { revealInFinder(item.paths) }
+                HStack {
+                    if !item.paths.isEmpty {
+                        Button("Reveal in Finder") { revealInFinder(item.paths) }
+                    }
+                    let kept = model.isKept(item)
+                    if !item.isProtected || kept {
+                        Button { model.setKept(item, !kept) } label: {
+                            Label(kept ? "Stop keeping" : "Always keep", systemImage: kept ? "pin.slash" : "pin")
+                        }
+                        .help("Protect this item from every clean: app, menu bar, rules and agents")
+                    }
                 }
+                .secondaryGlassButton()
             }
             .padding(16)
         }

@@ -17,6 +17,8 @@ cp "$BIN/DevSweepApp" "$APP/Contents/MacOS/DevSweep"
 cp "$BIN/devsweep" dist/devsweep
 [ -f Resources/AppIcon.icns ] || scripts/make_icon.sh
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+# The CLI ships inside the app too, so the MCP command has a stable path.
+cp "$BIN/devsweep" "$APP/Contents/Resources/devsweep"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

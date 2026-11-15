@@ -226,3 +226,80 @@ final class SandboxHomeTests: XCTestCase {
         XCTAssertEqual(Tier.hasData.defaultRemovalMode, .trash)
     }
 }
+
+final class MCPServerTests: XCTestCase {
+    var dir: URL!
+
+    override func setUpWithError() throws {
+        dir = FileManager.default.temporaryDirectory.appendingPathComponent("devsweep-mcp-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    }
+
+    override func tearDownWithError() throws { try? FileManager.default.removeItem(at: dir) }
+
+    func item(_ key: String, _ tier: Tier, protection: String? = nil) -> Item {
+        Item(recipeID: "test", key: key, ecosystem: .projects, tier: tier, name: key, detail: "", paths: [],
+             size: 1_000_000_000, lossNote: "rebuilt", protection: protection)
+    }
+
+    func server(allow: Bool = true, cleaned: @escaping ([Item]) -> Void = { _ in }) -> MCPServer {
+        let result = ScanResult(items: [item("safe", .rebuilds), item("active", .rebuilds, protection: "Active project"),
+                                        item("runtime", .redownload)],
+                                disk: DiskInfo(total: 100, available: 10), scannedAt: Date(), duration: 1)
+        return MCPServer(scan: { result },
+                         clean: { items in
+                             cleaned(items)
+                             return items.map { CleanOutcome(item: $0, freed: $0.size, movedToTrash: 0, error: nil) }
+                         },
+                         cacheURL: dir.appendingPathComponent("scan.json"),
+                         historyURL: dir.appendingPathComponent("history.jsonl"),
+                         allowClean: { allow })
+    }
+
+    func json(_ s: String?) throws -> [String: Any] {
+        try XCTUnwrap(JSONSerialization.jsonObject(with: Data(XCTUnwrap(s).utf8)) as? [String: Any])
+    }
+
+    func toolPayload(_ response: String?) throws -> (payload: [String: Any], isError: Bool) {
+        let result = try XCTUnwrap(json(response)["result"] as? [String: Any])
+        let text = try XCTUnwrap((result["content"] as? [[String: Any]])?.first?["text"] as? String)
+        return (try XCTUnwrap(JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any]),
+                result["isError"] as? Bool ?? false)
+    }
+
+    func testInitializeListAndNotifications() async throws {
+        let s = server()
+        let initResp = try json(await s.handle(#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"t","version":"1"}}}"#))
+        XCTAssertEqual((initResp["result"] as? [String: Any])?["protocolVersion"] as? String, "2025-06-18")
+        let none = await s.handle(#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#)
+        XCTAssertNil(none)
+        let list = try json(await s.handle(#"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#))
+        let names = ((list["result"] as? [String: Any])?["tools"] as? [[String: Any]])?.compactMap { $0["name"] as? String }
+        XCTAssertEqual(names, ["disk_status", "plan_cleanup", "clean_safe"])
+        let unknown = try json(await s.handle(#"{"jsonrpc":"2.0","id":3,"method":"nope"}"#))
+        XCTAssertNotNil(unknown["error"])
+    }
+
+    func testCleanSafeOnlyRemovesUnprotectedRebuilds() async throws {
+        var removed: [String] = []
+        let s = server(cleaned: { removed = $0.map(\.name) })
+        let r = try toolPayload(await s.handle(#"{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"clean_safe","arguments":{}}}"#))
+        XCTAssertFalse(r.isError)
+        XCTAssertEqual(removed, ["safe"])
+        XCTAssertEqual(CleanHistory.load(from: dir.appendingPathComponent("history.jsonl")).first?.source, "mcp")
+    }
+
+    func testCleanSafeRespectsTheSwitchAndDryRun() async throws {
+        var called = false
+        let off = server(allow: false, cleaned: { _ in called = true })
+        let r = try toolPayload(await off.handle(#"{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"clean_safe","arguments":{}}}"#))
+        XCTAssertTrue(r.isError)
+        XCTAssertFalse(called)
+
+        let dry = server(cleaned: { _ in called = true })
+        let d = try toolPayload(await dry.handle(#"{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"clean_safe","arguments":{"dry_run":true}}}"#))
+        XCTAssertFalse(called)
+        XCTAssertEqual((d.payload["items"] as? [[String: Any]])?.count, 1)
+        XCTAssertEqual((d.payload["protected"] as? [[String: Any]])?.first?["reason"] as? String, "Active project")
+    }
+}

@@ -9,6 +9,7 @@ struct SettingsView: View {
     @AppStorage(SettingsKey.notificationsEnabled) private var notificationsEnabled = true
     @AppStorage(SettingsKey.showFreeInMenuBar) private var showFree = true
     @AppStorage(SettingsKey.showInDock) private var showInDock = true
+    @AppStorage(SettingsKey.openWindowAtLaunch) private var openWindowAtLaunch = true
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var loginError: String?
     @State private var notificationStatus: UNAuthorizationStatus = .notDetermined
@@ -35,6 +36,7 @@ struct SettingsView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Menu bar and Dock") {
+                Toggle("Open the window when DevSweep starts", isOn: $openWindowAtLaunch)
                 Toggle("Show free space next to the menu bar icon", isOn: $showFree)
                 Toggle("Show in Dock", isOn: $showInDock)
                     .onChange(of: showInDock) { model.applyDockPreference() }
