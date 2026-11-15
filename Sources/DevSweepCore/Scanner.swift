@@ -156,6 +156,10 @@ public struct Scanner: Sendable {
         let marked = items.map { item -> Item in
             var i = item
             if keep.contains(i.id) && i.protection == nil { i.protection = "You chose to always keep this" }
+            // Never offer what the Cleaner would refuse: run the same last-line safety check now.
+            if i.protection == nil, case .removePaths = i.action, let why = Self.safetyProblem(i, options) {
+                i.protection = why
+            }
             return i
         }
         let sorted = marked.filter { $0.size > 0 }.sorted { a, b in
@@ -163,5 +167,14 @@ public struct Scanner: Sendable {
         }
         return ScanResult(items: sorted, disk: DiskInfo.current(for: options.home), scannedAt: start,
                           duration: Date().timeIntervalSince(start))
+    }
+
+    /// The reason PathSafety would refuse one of the item's paths, if any.
+    static func safetyProblem(_ item: Item, _ options: ScanOptions) -> String? {
+        for p in item.paths {
+            do { try PathSafety.check(p, allowedRoots: [options.home, options.androidSDK], home: options.home) }
+            catch { return "\(error)" }
+        }
+        return nil
     }
 }

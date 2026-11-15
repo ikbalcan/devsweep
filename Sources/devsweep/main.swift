@@ -147,6 +147,7 @@ case "history":
     for e in entries {
         print("\(f.string(from: e.date))  \(pad(e.source, 16)) \(lpad(ByteFormat.string(e.freed), 9))  \(e.items.count) items"
               + (e.failures > 0 ? ", \(e.failures) skipped" : ""))
+        for err in e.errors ?? [] { print("    ! \(err)") }
     }
 
 default:

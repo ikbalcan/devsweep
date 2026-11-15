@@ -180,6 +180,19 @@ final class SandboxHomeTests: XCTestCase {
                                                   allowedRoots: [home], home: home))
     }
 
+    func testScannerNeverOffersWhatTheCleanerRefuses() throws {
+        try make(".dartServer/.analysis-driver/x", file: true)
+        func item(_ rel: String) -> Item {
+            Item(recipeID: "package-caches", key: "t", ecosystem: .packages, tier: .rebuilds, name: "t", detail: "",
+                 paths: [home.appendingPathComponent(rel)], size: 1, lossNote: "")
+        }
+        let opts = ScanOptions(home: home)
+        XCTAssertNotNil(Scanner.safetyProblem(item(".dartServer"), opts))  // directly under home: refused
+        XCTAssertNil(Scanner.safetyProblem(item(".dartServer/.analysis-driver"), opts))
+        XCTAssertTrue(PackageCachesRecipe.caches.allSatisfy { $0.path.contains("/") },
+                      "every cache path must be at least two levels deep, or the cleaner refuses it")
+    }
+
     func testAIToolsFindsCachesOrphansAndOllama() async throws {
         let support = "Library/Application Support/Cursor"
         try make("\(support)/Cache/data_0", file: true)

@@ -60,6 +60,8 @@ public enum CleanHistory {
         public let trashed: Int64
         public let items: [String]
         public let failures: Int
+        /// "Item name: reason" for each item that was skipped or failed. Missing in older entries.
+        public var errors: [String]? = nil
     }
 
     public static var url: URL {
@@ -74,7 +76,8 @@ public enum CleanHistory {
         let ok = outcomes.filter(\.succeeded)
         let entry = Entry(date: Date(), source: source, freed: ok.reduce(0) { $0 + $1.freed },
                           trashed: ok.reduce(0) { $0 + $1.movedToTrash }, items: ok.map(\.item.name),
-                          failures: outcomes.count - ok.count)
+                          failures: outcomes.count - ok.count,
+                          errors: outcomes.filter { !$0.succeeded }.map { "\($0.item.name): \($0.error ?? "unknown error")" })
         append(entry, to: url)
         return entry
     }

@@ -96,18 +96,7 @@ struct AutomationView: View {
                     Text("No cleans yet.").foregroundStyle(.secondary)
                 } else {
                     ForEach(model.history) { entry in
-                        HStack(alignment: .firstTextBaseline) {
-                            Image(systemName: Self.symbol(for: entry.source)).foregroundStyle(.secondary).frame(width: 18)
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text("\(ByteFormat.string(entry.freed)) freed · \(entry.items.count) items"
-                                     + (entry.failures > 0 ? " · \(entry.failures) skipped" : ""))
-                                Text("\(entry.source) · \(entry.items.prefix(3).joined(separator: ", "))\(entry.items.count > 3 ? "…" : "")")
-                                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                            }
-                            Spacer()
-                            Text(entry.date.formatted(date: .abbreviated, time: .shortened))
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
+                        HistoryRow(entry: entry)
                     }
                 }
             }
@@ -148,4 +137,36 @@ struct AutomationView: View {
     }
 
     static var claudeCommand: String { "claude mcp add devsweep -- \"\(cliPath)\" mcp" }
+}
+
+/// One line of clean history, with the reason for each skipped item underneath.
+struct HistoryRow: View {
+    let entry: CleanHistory.Entry
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Image(systemName: AutomationView.symbol(for: entry.source)).foregroundStyle(.secondary).frame(width: 18)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(summary)
+                Text(itemsLine).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                ForEach(entry.errors ?? [], id: \.self) { e in
+                    Label(e, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption).foregroundStyle(.orange).lineLimit(2).textSelection(.enabled)
+                }
+            }
+            Spacer()
+            Text(entry.date.formatted(date: .abbreviated, time: .shortened))
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private var summary: String {
+        let skipped = entry.failures > 0 ? " · \(entry.failures) skipped" : ""
+        return "\(ByteFormat.string(entry.freed)) freed · \(entry.items.count) items" + skipped
+    }
+
+    private var itemsLine: String {
+        let more = entry.items.count > 3 ? "…" : ""
+        return "\(entry.source) · \(entry.items.prefix(3).joined(separator: ", "))\(more)"
+    }
 }
