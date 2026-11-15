@@ -52,8 +52,19 @@ public enum Shell {
 }
 
 public enum FileSize {
+    /// Set by the Scanner for the duration of a scan; nil means always measure.
+    nonisolated(unsafe) public static var cache: SizeCache?
+
     /// Allocated size on disk of a file or directory tree. Symlinks are not followed.
     public static func allocated(_ url: URL) -> Int64 {
+        if let cache, FileManager.default.isDirectory(url),
+           (try? url.resourceValues(forKeys: [.isSymbolicLinkKey]))?.isSymbolicLink != true {
+            return cache.size(of: url) { measure(url) }
+        }
+        return measure(url)
+    }
+
+    static func measure(_ url: URL) -> Int64 {
         let keys: [URLResourceKey] = [.isRegularFileKey, .isSymbolicLinkKey, .totalFileAllocatedSizeKey,
                                       .fileAllocatedSizeKey, .isDirectoryKey]
         guard let top = try? url.resourceValues(forKeys: Set(keys)) else { return 0 }

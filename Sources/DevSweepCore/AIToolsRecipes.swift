@@ -69,8 +69,12 @@ struct AIToolsRecipe: Recipe {
         let globalDB = support.appendingPathComponent("User/globalStorage/state.vscdb")
         if fm.fileExists(atPath: globalDB.path) {
             let db = ["", "-wal", "-shm", ".backup"].map { URL(fileURLWithPath: globalDB.path + $0) }
-            await add("state-db", "\(app.name) chat and app state", "User/globalStorage/state.vscdb", db, .hasData,
-                      "All \(app.name) chat and agent history, plus app state such as recent projects and possibly your sign-in. settings.json and keybindings are kept.",
+            // Compacting only helps when the database has free pages; say how much, so nobody hopes for more.
+            let reclaimable = Self.sqliteFreeBytes(globalDB)
+            let detail = reclaimable.map { "User/globalStorage/state.vscdb · compacting would free only \(ByteFormat.string($0))" }
+                ?? "User/globalStorage/state.vscdb"
+            await add("state-db", "\(app.name) chat and app state", detail, db, .hasData,
+                      "All \(app.name) chat and agent history, plus app state such as recent projects and possibly your sign-in. settings.json and keybindings are kept. To shrink it without losing everything, delete old chats inside \(app.name).",
                       protection: quit)
         }
         let workspaces = support.appendingPathComponent("User/workspaceStorage")
@@ -110,6 +114,16 @@ struct AIToolsRecipe: Recipe {
             }
         }
         return items
+    }
+
+    /// Free pages × page size, read-only and instant (PRAGMA only). Nil for small or unreadable files.
+    static func sqliteFreeBytes(_ db: URL) -> Int64? {
+        guard let size = (try? db.resourceValues(forKeys: [.fileSizeKey]))?.fileSize, size > 100_000_000 else { return nil }
+        let r = Shell.run("/usr/bin/sqlite3", ["file:\(db.path)?mode=ro", "PRAGMA page_size; PRAGMA freelist_count;"],
+                          timeout: 10)
+        let nums = r.stdout.split(whereSeparator: \.isNewline).compactMap { Int64($0) }
+        guard r.ok, nums.count == 2 else { return nil }
+        return nums[0] * nums[1]
     }
 
     /// workspaceStorage/<hash>/workspace.json points at the folder: {"folder": "file:///Users/..."}.

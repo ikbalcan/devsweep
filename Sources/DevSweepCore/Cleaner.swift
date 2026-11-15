@@ -85,7 +85,7 @@ public struct CleanOutcome: Sendable {
 public struct Cleaner: Sendable {
     public let home: URL
     public let allowedRoots: [URL]
-    static let allowedExecutables: Set<String> = Set(["/usr/bin/xcrun"] + AIToolsRecipe.ollamaBinaries)
+    static let allowedExecutables: Set<String> = Set(["/usr/bin/xcrun"] + AIToolsRecipe.ollamaBinaries + DockerRecipe.binaries)
 
     public init(options: ScanOptions = ScanOptions()) {
         self.home = options.home

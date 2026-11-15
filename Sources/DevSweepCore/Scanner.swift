@@ -63,6 +63,7 @@ public enum Recipes {
         GradleWrapperRecipe(),
         PackageCachesRecipe(),
         AIToolsRecipe(),
+        DockerRecipe(),
     ]
 }
 
@@ -89,6 +90,7 @@ public enum ScanSteps {
         "gradle-wrapper": "Gradle distributions",
         "package-caches": "Package manager caches",
         "ai-tools": "AI tools & editors",
+        "docker": "Docker",
     ]
     public static func title(_ id: String) -> String { titles[id] ?? id }
 }
@@ -102,8 +104,15 @@ public struct Scanner: Sendable {
         self.recipes = recipes
     }
 
-    public func scan(progress: (@Sendable (ScanEvent) -> Void)? = nil) async -> ScanResult {
+    /// - Parameter reuseSizes: reuse sizes of unchanged folders from earlier scans (fast). Pass false for a full rescan.
+    public func scan(reuseSizes: Bool = true, progress: (@Sendable (ScanEvent) -> Void)? = nil) async -> ScanResult {
         let start = Date()
+        let sizeCache = SizeCache(load: reuseSizes)
+        FileSize.cache = sizeCache
+        defer {
+            sizeCache.save()
+            FileSize.cache = nil
+        }
         progress?(.started(steps: [ScanSteps.projectSearch] + recipes.map(\.id)))
         let snapshot = SystemSnapshot.capture()
 

@@ -303,3 +303,44 @@ final class MCPServerTests: XCTestCase {
         XCTAssertEqual((d.payload["protected"] as? [[String: Any]])?.first?["reason"] as? String, "Active project")
     }
 }
+
+final class SizeCacheTests: XCTestCase {
+    func testReusesUntilSomethingChangesOrItExpires() throws {
+        let fm = FileManager.default
+        let dir = fm.temporaryDirectory.appendingPathComponent("devsweep-size-\(UUID().uuidString)")
+        try fm.createDirectory(at: dir.appendingPathComponent("sub"), withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: dir) }
+        try "a".write(to: dir.appendingPathComponent("sub/a.txt"), atomically: true, encoding: .utf8)
+        let cache = SizeCache(url: dir.deletingLastPathComponent().appendingPathComponent(dir.lastPathComponent + "-cache.json"), maxAge: 3600, load: false)
+        var computed = 0
+        func size(_ now: Date = Date()) -> Int64 { cache.size(of: dir, now: now) { computed += 1; return Int64(computed) } }
+
+        XCTAssertEqual(size(), 1)
+        XCTAssertEqual(size(), 1)                        // unchanged: reused
+        XCTAssertEqual(computed, 1)
+        try "b".write(to: dir.appendingPathComponent("sub/b.txt"), atomically: true, encoding: .utf8)
+        XCTAssertEqual(size(), 2)                        // a child folder changed: measured again
+        XCTAssertEqual(size(Date().addingTimeInterval(7200)), 3)  // too old: measured again
+
+        cache.save()
+        let reloaded = SizeCache(url: dir.deletingLastPathComponent().appendingPathComponent(dir.lastPathComponent + "-cache.json"), maxAge: 3600)
+        XCTAssertEqual(reloaded.size(of: dir, now: Date().addingTimeInterval(7200)) { 99 }, 3)
+    }
+}
+
+final class DockerParsingTests: XCTestCase {
+    func testParsesSystemDf() {
+        let out = """
+        {"Active":"2","Reclaimable":"1.2GB (50%)","Size":"2.4GB","TotalCount":"5","Type":"Images"}
+        {"Active":"1","Reclaimable":"512MB (100%)","Size":"512MB","TotalCount":"3","Type":"Containers"}
+        {"Active":"0","Reclaimable":"0B","Size":"0B","TotalCount":"0","Type":"Local Volumes"}
+        {"Active":"0","Reclaimable":"3.5GB","Size":"3.5GB","TotalCount":"40","Type":"Build Cache"}
+        """
+        let rows = DockerRecipe.parse(out)
+        XCTAssertEqual(rows.map(\.type), ["Images", "Containers", "Local Volumes", "Build Cache"])
+        XCTAssertEqual(rows[0].reclaimable, 1_200_000_000)
+        XCTAssertEqual(rows[1].reclaimable, 512_000_000)
+        XCTAssertEqual(rows[2].reclaimable, 0)
+        XCTAssertEqual(DockerRecipe.bytes("12.5kB"), 12_500)
+    }
+}

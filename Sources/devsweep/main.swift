@@ -7,6 +7,8 @@ devsweep: safe disk cleanup for developers
 USAGE
   devsweep status                       Free space and what can be freed, per tier
   devsweep scan [--json]                Everything DevSweep found, grouped by area
+                                        (add --full to re-measure every folder; otherwise
+                                        unchanged folders reuse their size for up to a day)
   devsweep clean --tier rebuilds [--dry-run] [--yes]
                                         Remove every unprotected item of that tier
   devsweep clean --tier redownload [--dry-run] [--yes] [--delete]
@@ -37,7 +39,12 @@ func fail(_ message: String) -> Never {
 
 func scan() async -> ScanResult {
     if !flag("--json") { FileHandle.standardError.write(Data("Scanning…\n".utf8)) }
-    let r = await Scanner().scan()
+    let start = Date()
+    let timing = ProcessInfo.processInfo.environment["DEVSWEEP_TIMING"] != nil
+    let r = await Scanner().scan(reuseSizes: !flag("--full")) { event in
+        guard timing, case .stepFinished(let id, let items, _) = event else { return }
+        FileHandle.standardError.write(Data(String(format: "  %6.1f s  %@ (%d)\n", Date().timeIntervalSince(start), id, items).utf8))
+    }
     ScanCache.save(r)
     return r
 }

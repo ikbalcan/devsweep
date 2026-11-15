@@ -25,6 +25,9 @@ struct DevSweepApp: App {
             CommandGroup(after: .newItem) {
                 Button("Rescan") { Task { await model.scan() } }
                     .keyboardShortcut("r", modifiers: .command)
+                Button("Rescan Fully") { Task { await model.scan(full: true) } }
+                    .keyboardShortcut("r", modifiers: [.command, .shift])
+                    .help("Re-measure every folder instead of reusing sizes of unchanged ones")
             }
         }
 

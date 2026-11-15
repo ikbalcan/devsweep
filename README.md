@@ -61,6 +61,11 @@ Every clean (app, menu bar, notification, CLI, MCP, rules) is logged in
 
 ## Status
 
+v0.5: rescans in about a second (unchanged folders reuse their size for up to a day; Rescan Fully
+with ⇧⌘R or `--full`), Docker (build cache, unused images, stopped containers, anonymous volumes via
+`docker ... prune`), Cursor's chat database shows how little compacting would free, closer glass look on
+macOS 14 and 15.
+
 v0.4: MCP server, automation rules (weekly stale-project sweep, auto-clean when almost full,
 remove unavailable simulators; all off by default), "Always keep" list shared by every entry point,
 clean history, instant launch from the cached last scan, option to start in the menu bar only.

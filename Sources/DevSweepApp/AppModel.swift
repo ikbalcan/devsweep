@@ -109,13 +109,14 @@ final class AppModel {
 
     // MARK: Scanning
 
-    func scan() async {
+    func scan(full: Bool = false) async {
         guard !isScanning else { return }
         isScanning = true
+        let durationKey = full ? "lastFullScanDuration" : "lastScanDuration"
         scanProgress = ScanProgress(startedAt: Date(),
-                                    expectedDuration: UserDefaults.standard.double(forKey: "lastScanDuration"))
+                                    expectedDuration: UserDefaults.standard.double(forKey: durationKey))
         let r = await Task.detached(priority: .userInitiated) {
-            await Scanner().scan { event in
+            await Scanner().scan(reuseSizes: !full) { event in
                 Task { @MainActor [weak self] in self?.scanProgress.apply(event) }
             }
         }.value
@@ -123,7 +124,7 @@ final class AppModel {
         disk = r.disk
         ScanCache.save(r)
         // A scan that sat behind a macOS permission prompt is not a useful estimate for the next one.
-        if r.duration < 300 { UserDefaults.standard.set(r.duration, forKey: "lastScanDuration") }
+        if r.duration < 300 { UserDefaults.standard.set(r.duration, forKey: durationKey) }
         // Default selection: only items that rebuild on their own and are not protected.
         selected = Set(r.safeSelection.map(\.id))
         isScanning = false
