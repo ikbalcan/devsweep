@@ -15,7 +15,7 @@ public final class MCPServer {
     let allowClean: () -> Bool
     let version: String
 
-    public init(version: String = "0.4.0",
+    public init(version: String = DevSweepVersion.current,
                 scan: @escaping () async -> ScanResult = { await Scanner().scan() },
                 clean: @escaping ([Item]) -> [CleanOutcome] = { Cleaner().clean($0, mode: { $0.defaultRemovalMode }) },
                 cacheURL: URL = ScanCache.url, historyURL: URL = CleanHistory.url,

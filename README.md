@@ -3,6 +3,9 @@
 Safe disk cleanup for developers on macOS. DevSweep knows Xcode, iOS simulators, the Android SDK and emulators,
 Gradle, project build folders and package-manager caches, and tells you **what is safe to remove before you remove it**.
 
+> **Heads-up:** DevSweep deletes files. It is built to be careful (see the safety model below), but it comes
+> with no warranty. Try `devsweep clean --dry-run` first and keep a backup (Time Machine) of anything you care about.
+
 ## Safety model
 
 Every item gets one of three tiers:
@@ -28,7 +31,14 @@ scripts/bundle.sh          # dist/DevSweep.app and dist/devsweep
 swift test
 ```
 
-Requires macOS 14+ and Xcode 16+.
+Runs on macOS 14+. Building needs Xcode 26+ (for the Liquid Glass APIs).
+
+The bundled app is ad-hoc signed, not notarized, so Gatekeeper blocks the first launch. Right-click
+`DevSweep.app` and choose **Open**, or clear the quarantine flag once:
+
+```bash
+xattr -dr com.apple.quarantine dist/DevSweep.app
+```
 
 ## CLI
 
@@ -68,6 +78,8 @@ Every clean (app, menu bar, notification, CLI, MCP, rules) is logged in
 
 ## Status
 
+v0.7: Large files section for your own big files outside developer folders.
+
 v0.6: agent worktrees. Finds git worktrees left behind by Cursor, Claude Code and Codex (and any other
 worktree of your repositories) and removes them with `git worktree remove`, never `--force`. Worktrees
 with uncommitted or untracked files, commits on no branch, a lock, or use in the last 7 days are kept;
@@ -91,6 +103,10 @@ notifications, menu bar text, Dock icon, open at login).
 
 v0.1: scanner, 11 recipes, app (overview, area detail with inspector, review sheet), CLI.
 
-Next: see `ROADMAP.md` and `docs/NOTES.md`.
+Next: see `ROADMAP.md`.
 
 Notifications and open-at-login only work from the bundled app (`scripts/bundle.sh`), not from `swift run`.
+
+## License
+
+MIT, see [LICENSE](LICENSE). Security issues: see [SECURITY.md](SECURITY.md).

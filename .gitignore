@@ -2,4 +2,7 @@
 .swiftpm/
 dist/
 *.xcodeproj/xcuserdata/
-dist/
+.DS_Store
+video/
+# Private hand-off notes, kept locally only
+docs/NOTES.md
