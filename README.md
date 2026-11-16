@@ -6,6 +6,10 @@ Gradle, project build folders and package-manager caches, and tells you **what i
 > **Heads-up:** DevSweep deletes files. It is built to be careful (see the safety model below), but it comes
 > with no warranty. Try `devsweep clean --dry-run` first and keep a backup (Time Machine) of anything you care about.
 
+> **Project status:** a personal tool I built for my own Mac and share in case it helps others. I maintain it
+> as time allows, with no support or response-time guarantee. Issues and pull requests are welcome, but may
+> go unanswered for a while.
+
 ## Safety model
 
 Every item gets one of three tiers:
