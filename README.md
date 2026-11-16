@@ -3,11 +3,7 @@
 Safe disk cleanup for developers on macOS. DevSweep knows Xcode, iOS simulators, the Android SDK and emulators,
 Gradle, project build folders and package-manager caches, and tells you **what is safe to remove before you remove it**.
 
-![DevSweep overview: free space, the three safety tiers and space used per area](docs/images/overview.png)
-
-<p align="center">
-  <img src="docs/images/menu-bar.png" width="340" alt="Menu bar popover with free space and a one-click safe clean">
-</p>
+![DevSweep in 40 seconds: why it exists, the three safety tiers, protected projects, the menu bar and MCP](docs/images/demo.gif)
 
 > **Heads-up:** DevSweep deletes files. It is built to be careful (see the safety model below), but it comes
 > with no warranty. Try `devsweep clean --dry-run` first and keep a backup (Time Machine) of anything you care about.
@@ -15,6 +11,20 @@ Gradle, project build folders and package-manager caches, and tells you **what i
 > **Project status:** a personal tool I built for my own Mac and share in case it helps others. I maintain it
 > as time allows, with no support or response-time guarantee. Issues and pull requests are welcome, but may
 > go unanswered for a while.
+
+## Screenshots
+
+![Overview: free space, the three safety tiers and space used per area](docs/images/overview.png)
+
+![Projects: build folders per project, active projects locked, what will be removed shown on the right](docs/images/projects.png)
+
+![AI tools and editors: Cursor, Claude, VS Code, Ollama and more, each with its tier](docs/images/ai-tools.png)
+
+<p align="center">
+  <img src="docs/images/menu-bar.png" width="340" alt="Menu bar popover with free space and a one-click safe clean">
+  &nbsp;
+  <img src="docs/images/item-detail.png" width="340" alt="Item detail: what you will lose and exactly which path is removed">
+</p>
 
 ## Safety model
 
