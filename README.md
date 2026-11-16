@@ -3,6 +3,12 @@
 Safe disk cleanup for developers on macOS. DevSweep knows Xcode, iOS simulators, the Android SDK and emulators,
 Gradle, project build folders and package-manager caches, and tells you **what is safe to remove before you remove it**.
 
+![DevSweep overview: free space, the three safety tiers and space used per area](docs/images/overview.png)
+
+<p align="center">
+  <img src="docs/images/menu-bar.png" width="340" alt="Menu bar popover with free space and a one-click safe clean">
+</p>
+
 > **Heads-up:** DevSweep deletes files. It is built to be careful (see the safety model below), but it comes
 > with no warranty. Try `devsweep clean --dry-run` first and keep a backup (Time Machine) of anything you care about.
 
