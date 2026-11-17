@@ -92,6 +92,16 @@ claude mcp add devsweep -- /Applications/DevSweep.app/Contents/Resources/devswee
 | `plan_cleanup` | Read-only list of what a tier would remove and what stays protected and why. |
 | `clean_safe` | Scans, then removes unprotected **Rebuilds** items only. Off when "Allow AI agents to clean" is off. |
 
+### Agent skill
+
+[`skills/devsweep/SKILL.md`](skills/devsweep/SKILL.md) tells the agent when to reach for these tools
+(disk full, `No space left on device`, "what is using my disk") and how: check, plan, ask, then clean.
+Install it for Claude Code:
+
+```bash
+mkdir -p ~/.claude/skills && cp -R skills/devsweep ~/.claude/skills/
+```
+
 Every clean (app, menu bar, notification, CLI, MCP, rules) is logged in
 `~/Library/Application Support/DevSweep/history.jsonl` and shown under Automation > History
 (`devsweep history` in the terminal).
